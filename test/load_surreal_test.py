@@ -19,21 +19,35 @@ By Fanghao Yang, 10/15/2020
 """
 
 import click
-from datasets.dataset_loader import load_surreal_data
+from datasets.dataset_loader import load_surreal_data, parse_tfr_tensor
 from pathlib import Path
-import tensorflow as tf
 import pylab
+import numpy as np
 
 
 @click.command()
 @click.option('--input_file', help='input TFRecords file')
 def load_surreal_test(input_file: str):
     dataset = load_surreal_data(Path(input_file))
-    for example in dataset.take(1):
-        rgb_map = tf.io.parse_tensor(example['rgb'], out_type=tf.uint8)
+    for element in dataset.take(5):
+        example = parse_tfr_tensor(element)
         pylab.figure()
-        pylab.imshow(rgb_map)
-        print(f"rgb image shape {rgb_map.shape}")
+        pylab.imshow(example['rgb'])
+        print(f"rgb image shape {example['rgb'].shape}")
+        pylab.figure()
+        depth_map = example['depth'].numpy()
+        depth_map[depth_map > 100] = 0.0
+        pylab.imshow(depth_map)
+        # list heat maps
+        heat_maps = [example['heat_map'][:, :, i] for i in range(example['heat_map'].shape[-1])]
+        # for heat_map in heat_maps:
+        #     pylab.figure()
+        #     pylab.imshow(heat_map)
+        pylab.figure()
+        blended_map = np.zeros(heat_maps[0].shape)
+        for heat_map in heat_maps:
+            blended_map += heat_map
+        pylab.imshow(blended_map)
     pylab.show()
 
 

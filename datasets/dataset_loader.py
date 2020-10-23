@@ -23,20 +23,32 @@ import tensorflow as tf
 from pathlib import Path
 
 
+def parse_tfr_tensor(element):
+    new_element = {
+        'rgb': tf.io.parse_tensor(element['rgb'], out_type=tf.uint8),
+        'depth': tf.io.parse_tensor(element['depth'], out_type=tf.float32),
+        'joints_2d': tf.io.parse_tensor(element['joints_2d'], out_type=tf.float32),
+        'joints_3d': tf.io.parse_tensor(element['joints_3d'], out_type=tf.float32),
+        'heat_map': tf.io.parse_tensor(element['heat_map'], out_type=tf.float32),
+        'cam_loc': tf.io.parse_tensor(element['cam_loc'], out_type=tf.float32),
+        'name': tf.strings.unicode_decode(element['name'], input_encoding='UTF-8'),
+        'frame_index': element['frame_index']
+    }
+    return new_element
+
+
 def _parse_tfr_element(element):
-    parse_dic = {
+    parse_dict = {
         # Note that it is tf.string, not tf.float32
         'rgb': tf.io.FixedLenFeature([], tf.string),
         'depth': tf.io.FixedLenFeature([], tf.string),
         'joints_2d': tf.io.FixedLenFeature([], tf.string),
         'joints_3d': tf.io.FixedLenFeature([], tf.string),
+        'heat_map': tf.io.FixedLenFeature([], tf.string),
         'cam_loc': tf.io.FixedLenFeature([], tf.string),
         'name': tf.io.FixedLenFeature([], tf.string),
         'frame_index': tf.io.FixedLenFeature([], tf.int64)}
-    example_message = tf.io.parse_single_example(element, parse_dic)
-    #
-    # b_feature = example_message['b_feature'] # get byte string
-    # feature = tf.io.parse_tensor(b_feature, out_type=tf.float64) # restore 2D array from byte string
+    example_message = tf.io.parse_single_example(element, parse_dict)
     return example_message
 
 

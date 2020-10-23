@@ -26,8 +26,9 @@ from pathlib import Path
 @click.command()
 @click.option('--input_dir', help='input data to be converted')
 @click.option('--output_file', help='output TFRecord data')
-def convert_surreal(input_dir: str, output_file: str):
-    convert_surreal_data(Path(input_dir), Path(output_file))
+@click.option('--frame_count', default=100000, help='number of frames to be converted')
+def convert_surreal(input_dir: str, output_file: str, frame_count: int):
+    convert_surreal_data(Path(input_dir), Path(output_file), frame_count)
 
 
 if __name__ == '__main__':

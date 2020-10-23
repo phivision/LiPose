@@ -14,27 +14,36 @@
 # from Phi Vision, Inc.
 
 """
-Convert custom data from existing datasets to serialized TFRecord data
-For faster data loading in training
+Convert custom data from existing datasets to serialized TFRecord data.
+For faster data loading in training.
 By Fanghao Yang, 10/15/2020
 """
 
 import scipy.io as sio
 import tensorflow as tf
 import imageio
+import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 import glob
 
 # since the uncompressed data is too large, we use a step to sample each 10 frames
-FRAME_STEP = 10
+FRAME_STEP = 101
+# to distinguish human body from background, this threshold value is used
+DEPTH_THRESHOLD = 1000
+# image height and width
+IMG_HEIGHT = 240
+IMG_WIDTH = 320
+# heat map size
+HEAT_MAP_HEIGHT = 64
+HEAT_MAP_WIDTH = 64
 
 
 # Utility functions to serialize numpy array as byte string
 def _bytes_feature(value):
     """Returns a bytes_list from a string / byte."""
-    if isinstance(value, type(tf.constant(0))): # if value ist tensor
-        value = value.numpy() # get value of tensor
+    if isinstance(value, type(tf.constant(0))):  # if value ist tensor
+        value = value.numpy()  # get value of tensor
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
@@ -69,15 +78,124 @@ def get_surreal_info(input_dir: Path, name: str):
     return info_data
 
 
-def convert_surreal_data(input_path: Path, output_path: Path, ):
+def _make_gaussian(height, width, sigma=3, center=None):
+    """ Make a square gaussian kernel.
+    size is the length of a side of the square sigma is full-width-half-maximum,
+    which can be thought of as an effective radius.
+    """
+    x = np.arange(0, width, 1, float)
+    y = np.arange(0, height, 1, float)[:, np.newaxis]
+    if center is None:
+        x0 = width // 2
+        y0 = height // 2
+    else:
+        x0 = center[0]
+        y0 = center[1]
+    return np.exp(-4 * np.log(2) * ((x - x0) ** 2 + (y - y0) ** 2) / sigma ** 2)
 
+
+def _generate_2d_crop_box(height, width, depth, box_pad_rate=0.05):
+    """Automatically returns a padding vector and a bounding box given
+    the size of the image and a list of joints.
+    Args:
+        height: Original Height
+        width: Original Width
+        depth: Depth map
+        box_pad_rate: Box percentage (Use 20% to get a good bounding box)
+
+    Returns:
+        padding vector, crop box [center_w, center_h, width, height]
+    """
+    padding = [[0, 0], [0, 0]]
+    # generate bbox from depth map
+    human_depth = np.where(depth < DEPTH_THRESHOLD)
+    box = (np.min(human_depth[1]), np.min(human_depth[0]), np.max(human_depth[1]), np.max(human_depth[0]))
+    # extend bbox with padding
+    crop_box = [box[0] - int(box_pad_rate * (box[2] - box[0])), box[1] - int(box_pad_rate * (box[3] - box[1])),
+                box[2] + int(box_pad_rate * (box[2] - box[0])), box[3] + int(box_pad_rate * (box[3] - box[1]))]
+    crop_box[0] = 0 if crop_box[0] < 0 else crop_box[0]
+    crop_box[1] = 0 if crop_box[1] < 0 else crop_box[1]
+    crop_box[2] = width - 1 if crop_box[2] > width - 1 else crop_box[2]
+    crop_box[3] = height - 1 if crop_box[3] > height - 1 else crop_box[3]
+    new_h = int(crop_box[3] - crop_box[1])
+    new_w = int(crop_box[2] - crop_box[0])
+    crop_box = [crop_box[0] + new_w // 2, crop_box[1] + new_h // 2, new_w, new_h]
+    if new_h > new_w:
+        bounds = (crop_box[0] - new_h // 2, crop_box[0] + new_h // 2)
+        if bounds[0] < 0:
+            padding[1][0] = abs(bounds[0])
+        if bounds[1] > width - 1:
+            padding[1][1] = abs(width - bounds[1])
+    elif new_h < new_w:
+        bounds = (crop_box[1] - new_w // 2, crop_box[1] + new_w // 2)
+        if bounds[0] < 0:
+            padding[0][0] = abs(bounds[0])
+        if bounds[1] > width - 1:
+            padding[0][1] = abs(height - bounds[1])
+    crop_box[0] += padding[1][0]
+    crop_box[1] += padding[0][0]
+    return padding, crop_box
+
+
+def _relative_joints(box, padding, joints_2d, to_size=64):
+    """ Convert Absolute joint coordinates to crop box relative joint coordinates
+        Used to compute Heat Maps)
+        Args:
+            box: Bounding Box
+            padding: Padding Added to the original Image
+            joints_2d: 2d coordinate array of joints, shape [2, num of joints]
+            to_size: Heat Map wanted Size
+    """
+    new_j = np.copy(joints_2d.T)
+    max_l = max(box[2], box[3])
+    new_j = new_j + [padding[1][0], padding[0][0]]
+    new_j = new_j - [box[0] - max_l // 2, box[1] - max_l // 2]
+    new_j = new_j * to_size / (max_l + 0.0000001)
+    return new_j.astype(np.int32).T
+
+
+def _generate_2d_heat_map(height, width, joints_2d, max_length):
+    """ Generate a full Heap Map for every joints in an array
+
+    Args:
+        height: Height for the Heat Map
+        width: Width for the Heat Map
+        joints_2d: Array of Joints
+        max_length: Length of the Bounding Box
+
+    Returns:
+        heat map
+    """
+    num_joints = joints_2d.shape[1]
+    hm = np.zeros((height, width, num_joints), dtype=np.float32)
+    for i in range(num_joints):
+        s = int(np.sqrt(max_length) * max_length * 10 / 4096) + 2
+        hm[:, :, i] = _make_gaussian(height, width, sigma=s, center=(joints_2d[0, i], joints_2d[1, i]))
+    return hm
+
+
+def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000):
+    """Convert SURREAL dataset to TFRecord serialized data
+
+    Args:
+        input_path: input path of dataset
+        output_path: output path of TFRecord file
+        max_count: maximum count of converted examples
+
+    Returns:
+        None
+    """
     if output_path.suffix != '.tfrecord':
         print("The output format is not supported, please use TFRecord format!")
         return
     with tf.io.TFRecordWriter(str(output_path)) as writer:
         # find all video files in the input dir
         mp4_files = tqdm(glob.glob(str(input_path.joinpath('**/*.mp4')), recursive=True))
+        conversion_count = 0
         for vid_file in mp4_files:
+            if conversion_count >= max_count:
+                # stop conversion since it reach max count
+                return
             vid_file = Path(vid_file)
             vid_dir = vid_file.parent
             vid_name = vid_file.stem
@@ -90,7 +208,7 @@ def convert_surreal_data(input_path: Path, output_path: Path, ):
                 raise ValueError("length of depth map and joint data does not match!")
             for i in range(0, num_frames, FRAME_STEP):
                 rgb_image = video.get_data(i)
-                depth_map = depth_data['depth_'+str(i+1)]
+                depth_map = depth_data['depth_' + str(i + 1)]
                 if num_frames == 1:
                     joints_2d = info_data['joints2D']
                     joints_3d = info_data['joints3D']
@@ -98,8 +216,13 @@ def convert_surreal_data(input_path: Path, output_path: Path, ):
                     joints_2d = info_data['joints2D'][:, :, i]
                     joints_3d = info_data['joints3D'][:, :, i]
                 cam_loc = info_data['camLoc']
+                # generate heat map array
+                pad_vec, c_box = _generate_2d_crop_box(IMG_HEIGHT, IMG_WIDTH, depth_map)
+                resized_joints_2d = _relative_joints(c_box, pad_vec, joints_2d, to_size=HEAT_MAP_HEIGHT)
+                heat_map = _generate_2d_heat_map(HEAT_MAP_HEIGHT, HEAT_MAP_WIDTH, resized_joints_2d, HEAT_MAP_WIDTH)
                 feature = {'rgb': _bytes_feature(serialize_array(rgb_image)),
                            'depth': _bytes_feature(serialize_array(depth_map)),
+                           'heat_map': _bytes_feature(serialize_array(heat_map)),
                            'joints_2d': _bytes_feature(serialize_array(joints_2d)),
                            'joints_3d': _bytes_feature(serialize_array(joints_3d)),
                            'cam_loc': _bytes_feature(serialize_array(cam_loc)),
@@ -107,7 +230,4 @@ def convert_surreal_data(input_path: Path, output_path: Path, ):
                            'frame_index': _int64_feature(i)}
                 example_message = tf.train.Example(features=tf.train.Features(feature=feature))
                 writer.write(example_message.SerializeToString())
-
-
-
-
+                conversion_count += 1
