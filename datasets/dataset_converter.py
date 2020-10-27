@@ -31,9 +31,9 @@ import glob
 FRAME_STEP = 101
 # to distinguish human body from background, this threshold value is used
 DEPTH_THRESHOLD = 1000
-# image height and width
-IMG_HEIGHT = 240
-IMG_WIDTH = 320
+# new input image height and width
+IMG_HEIGHT = 256
+IMG_WIDTH = 256
 # heat map size
 HEAT_MAP_HEIGHT = 64
 HEAT_MAP_WIDTH = 64
@@ -174,6 +174,68 @@ def _generate_2d_heat_map(height, width, joints_2d, max_length):
     return hm
 
 
+def _generate_new_depth(new_height, new_width, raw_depth):
+    """Generate a resized new depth image from raw data
+    This code ONLY works for converting 240x320 data to 256x256 data!!!
+    Args:
+        new_height: height of new depth map
+        new_width: width of new depth map
+        raw_depth: raw depth map
+
+    Returns:
+        new depth map, new and raw bbox of human in original depth map
+    """
+    # generate bbox from depth map
+    # human_depth = np.where(raw_depth < DEPTH_THRESHOLD)
+    # bounding box = (start width, start height, end width, end height)
+    # bbox = [np.min(human_depth[1]), np.min(human_depth[0]), np.max(human_depth[1]), np.max(human_depth[0])]
+    # human shape (human width, human height)
+    # human_shape = (bbox[2]-bbox[0], bbox[3]-bbox[1])
+    new_map = np.full((new_height, new_width), 1000000, dtype=np.float32)
+    # new_bbox = [(new_width - human_shape[0]) // 2,
+    #             (new_height - human_shape[1]) // 2,
+    #             (new_height + human_shape[0]) // 2,
+    #             (new_width + human_shape[0]) // 2]
+    # new_bbox[0] = 0 if new_bbox[0] < 0 else new_bbox[0]
+    # new_bbox[1] = 0 if new_bbox[1] < 0 else new_bbox[1]
+    # new_map[new_bbox[1]:(new_bbox[1] + human_shape[1]), new_bbox[0]:(new_bbox[0] + human_shape[0])] = \
+    #     raw_depth[bbox[1]:bbox[3], bbox[2]:bbox[0]]
+    # shift = [(new_bbox[0] + new_bbox[2]) / 2 - (bbox[0] + bbox[2]) / 2,
+    #          (new_bbox[1] + new_bbox[1]) / 2 - (bbox[0] + bbox[2]) / 2]
+    raw_height = raw_depth.shape[0]
+    raw_width = raw_depth.shape[1]
+    shift = [(new_width - raw_width)//2, (new_height - raw_height)//2]
+    new_map[shift[1]:shift[1]+raw_height, :] = raw_depth[:, -shift[0]:-shift[0]+new_width]
+    return new_map, shift
+
+
+def _generate_new_rgb(new_height, new_width, shift, raw_rgb):
+    """Generate a resized new rgb image from raw data
+    This code ONLY works for converting 240x320 data to 256x256 data!!!
+    Args:
+        new_height: height of new rgb map
+        new_width: width of new rgb map
+        raw_rgb: raw rgb image
+        shift:
+
+    Returns:
+        new rgb
+    """
+    new_rgb = np.zeros((new_height, new_width, 3), dtype=np.uint8)
+    raw_height = raw_rgb.shape[0]
+    new_rgb[shift[1]:shift[1]+raw_height, :] = raw_rgb[:, -shift[0]:-shift[0]+new_width]
+    return new_rgb
+
+
+def _generate_new_joints_2d(raw_joints_2d, shift):
+    num_joints = raw_joints_2d.shape[1]
+    new_joints_2d = np.zeros(raw_joints_2d.shape, dtype=np.float32)
+    for i in range(num_joints):
+        new_joints_2d[0, i] = raw_joints_2d[0, i] + shift[0]
+        new_joints_2d[1, i] = raw_joints_2d[1, i] + shift[1]
+    return new_joints_2d
+
+
 def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000):
     """Convert SURREAL dataset to TFRecord serialized data
 
@@ -207,15 +269,18 @@ def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000)
             if num_frames != (len(depth_data) - 3):
                 raise ValueError("length of depth map and joint data does not match!")
             for i in range(0, num_frames, FRAME_STEP):
-                rgb_image = video.get_data(i)
-                depth_map = depth_data['depth_' + str(i + 1)]
+                raw_rgb_image = video.get_data(i)
+                raw_depth_map = depth_data['depth_' + str(i + 1)]
+                depth_map, shift = _generate_new_depth(IMG_HEIGHT, IMG_WIDTH, raw_depth_map)
+                rgb_image = _generate_new_rgb(IMG_HEIGHT, IMG_WIDTH, shift, raw_rgb_image)
                 if num_frames == 1:
-                    joints_2d = info_data['joints2D']
+                    raw_joints_2d = info_data['joints2D']
                     joints_3d = info_data['joints3D']
                 else:
-                    joints_2d = info_data['joints2D'][:, :, i]
+                    raw_joints_2d = info_data['joints2D'][:, :, i]
                     joints_3d = info_data['joints3D'][:, :, i]
                 cam_loc = info_data['camLoc']
+                joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
                 # generate heat map array
                 pad_vec, c_box = _generate_2d_crop_box(IMG_HEIGHT, IMG_WIDTH, depth_map)
                 resized_joints_2d = _relative_joints(c_box, pad_vec, joints_2d, to_size=HEAT_MAP_HEIGHT)
