@@ -16,7 +16,7 @@
 Slim hour glass model for mobile applications
 Fanghao Yang 11/25/2020
 """
-import os, sys
+import tensorflow as tf
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from lib.models.blocks import create_front_module, hourglass_module, bottleneck_mobile

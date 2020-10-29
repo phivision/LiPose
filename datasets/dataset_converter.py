@@ -72,14 +72,14 @@ def get_surreal_video(input_dir: Path, name: str):
 def get_surreal_depth(input_dir: Path, name: str):
     depth_file = input_dir.joinpath(name + '_depth.mat')
     with depth_file.open(mode='r'):
-        depth_data = sio.loadmat(depth_file)
+        depth_data = sio.loadmat(str(depth_file))
     return depth_data
 
 
 def get_surreal_info(input_dir: Path, name: str):
     info_file = input_dir.joinpath(name + '_info.mat')
     with info_file.open(mode='r'):
-        info_data = sio.loadmat(info_file)
+        info_data = sio.loadmat(str(info_file))
     return info_data
 
 

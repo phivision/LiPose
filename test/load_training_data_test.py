@@ -14,12 +14,12 @@
 # from Phi Vision, Inc.
 
 """
-load SURREAL serialized TFRecords format
+load SURREAL serialized TFRecords format for training
 By Fanghao Yang, 10/15/2020
 """
 
 import click
-from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
+from datasets.dataset_loader import load_surreal_data_training, parse_tfr_tensor
 from pathlib import Path
 import pylab
 import numpy as np
@@ -27,29 +27,21 @@ import numpy as np
 
 @click.command()
 @click.option('--input_file', help='input TFRecords file')
-def load_surreal_test(input_file: str):
-    dataset = load_full_surreal_data(Path(input_file))
-    for element in dataset.take(5):
-        example = parse_tfr_tensor(element)
+def load_training_data_test(input_file: str):
+    dataset = load_surreal_data_training(Path(input_file), model_type='rgb')
+    for rgb, heat_map in dataset.take(3):
         pylab.figure()
-        pylab.imshow(example['rgb'])
-        print(f"rgb image shape {example['rgb'].shape}")
-        pylab.figure()
-        depth_map = example['depth'].numpy()
-        depth_map[depth_map > 100] = 0.0
-        pylab.imshow(depth_map)
+        pylab.imshow(rgb)
+        print(f"rgb image shape {rgb.shape}")
         # list heat maps
-        heat_maps = [example['heat_map'][:, :, i] for i in range(example['heat_map'].shape[-1])]
-        # for heat_map in heat_maps:
-        #     pylab.figure()
-        #     pylab.imshow(heat_map)
+        heat_maps = [heat_map[:, :, i] for i in range(heat_map.shape[-1])]
         pylab.figure()
         blended_map = np.zeros(heat_maps[0].shape)
-        for heat_map in heat_maps:
-            blended_map += heat_map
+        for hm in heat_maps:
+            blended_map += hm
         pylab.imshow(blended_map)
     pylab.show()
 
 
 if __name__ == '__main__':
-    load_surreal_test()
+    load_training_data_test()

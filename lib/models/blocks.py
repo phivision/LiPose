@@ -19,6 +19,7 @@ Fanghao Yang, 10/25/2020
 """
 from tensorflow.keras.layers import Conv2D, SeparableConv2D, BatchNormalization, MaxPool2D, Add, UpSampling2D
 import tensorflow.keras.backend as k_backend
+import tensorflow as tf
 
 
 def hourglass_module(bottom, num_classes, num_channels, bottleneck, hg_id):
@@ -59,6 +60,16 @@ def bottleneck_block(bottom, num_out_channels, block_name):
 
 
 def bottleneck_mobile(bottom, num_out_channels, block_name):
+    """
+    Using separable convolution layers for faster execution on mobile devices
+    Args:
+        bottom:
+        num_out_channels:
+        block_name:
+
+    Returns:
+
+    """
     # skip layer
     if k_backend.int_shape(bottom)[-1] == num_out_channels:
         _skip = bottom

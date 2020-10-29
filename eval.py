@@ -33,7 +33,7 @@ from lib.postprocessing import post_process_heatmap
 from utilities.image_utils import invert_transform_kp
 from utilities.misc_utils import touch_dir, get_classes, get_skeleton, render_skeleton, optimize_tf_gpu
 from utilities.model_utils import get_normalize
-from datasets.dataset_loader import load_surreal_data
+from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
@@ -322,7 +322,8 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
     batch_size = 1
     pbar = tqdm(total=eval_dataset.get_dataset_size(), desc='Eval model')
     for element in eval_dataset.take(batch_size):
-        image_data = element['rgb']
+        example = parse_tfr_tensor(element)
+        image_data = example['rgb']
         # gt_heatmap = element['heat_map']
         # fetch validation data from daset, which will crop out single person area,
         # resize to input_size and normalize image
@@ -346,7 +347,7 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
         pred_keypoints = np.array(pred_keypoints)
 
         # get ground truth keypoints (transformed)
-        gt_keypoints = element['joints_2d']
+        gt_keypoints = example['joints_2d']
 
         # calculate succeed & failed keypoints for prediction
         result_list = keypoint_accuracy(pred_keypoints, gt_keypoints, score_threshold, normalize)
@@ -358,16 +359,16 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
                 succeed_dict[class_name] = succeed_dict[class_name] + 1
 
         # revert predict keypoints back to origin image size
-        reverted_pred_keypoints = revert_keypoints(pred_keypoints, element, heatmap_size)
+        reverted_pred_keypoints = revert_keypoints(pred_keypoints, example, heatmap_size)
 
         # get coco result dict with predict keypoints and image info
-        result_dict = get_result_dict(reverted_pred_keypoints, element)
+        result_dict = get_result_dict(reverted_pred_keypoints, example)
         # add result dict to output list
         output_list.append(result_dict)
 
         if save_result:
             # render keypoints skeleton on image and save result
-            save_keypoints_detection(reverted_pred_keypoints, element, class_names, skeleton_lines)
+            save_keypoints_detection(reverted_pred_keypoints, example, class_names, skeleton_lines)
         pbar.update(batch_size)
     pbar.close()
 
@@ -477,7 +478,7 @@ def main():
 
     model, model_format = load_eval_model(args.model_path)
 
-    eval_dataset = load_surreal_data(args.dataset_path)
+    eval_dataset = load_full_surreal_data(args.dataset_path)
 
     total_accuracy, accuracy_dict = eval_pck(model, model_format, eval_dataset, class_names, args.score_threshold,
                                              normalize, args.conf_threshold, args.save_result, skeleton_lines)
