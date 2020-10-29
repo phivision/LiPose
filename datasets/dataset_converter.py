@@ -52,6 +52,11 @@ def _int64_feature(value):
     return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
 
 
+def _int64_feature_list(value):
+    """Returns an int32_list from a list of ints"""
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
+
+
 def serialize_array(array):
     array = tf.io.serialize_tensor(array)
     return array
@@ -292,7 +297,8 @@ def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000)
                            'joints_3d': _bytes_feature(serialize_array(joints_3d)),
                            'cam_loc': _bytes_feature(serialize_array(cam_loc)),
                            'name': _bytes_feature(vid_name.encode('utf-8')),
-                           'frame_index': _int64_feature(i)}
+                           'frame_index': _int64_feature(i),
+                           'crop_box': _int64_feature_list(c_box)}
                 example_message = tf.train.Example(features=tf.train.Features(feature=feature))
                 writer.write(example_message.SerializeToString())
                 conversion_count += 1

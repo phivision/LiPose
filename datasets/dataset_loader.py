@@ -32,7 +32,8 @@ def parse_tfr_tensor(element):
         'heat_map': tf.io.parse_tensor(element['heat_map'], out_type=tf.float32),
         'cam_loc': tf.io.parse_tensor(element['cam_loc'], out_type=tf.float32),
         'name': tf.strings.unicode_decode(element['name'], input_encoding='UTF-8'),
-        'frame_index': element['frame_index']
+        'frame_index': element['frame_index'],
+        'crop_box': element['crop_bix']
     }
     return new_element
 
@@ -47,7 +48,8 @@ def _parse_tfr_element(element):
         'heat_map': tf.io.FixedLenFeature([], tf.string),
         'cam_loc': tf.io.FixedLenFeature([], tf.string),
         'name': tf.io.FixedLenFeature([], tf.string),
-        'frame_index': tf.io.FixedLenFeature([], tf.int64)}
+        'frame_index': tf.io.FixedLenFeature([], tf.int64),
+        'crop_box': tf.io.FixedLenFeature([], tf.int64)}
     example_message = tf.io.parse_single_example(element, parse_dict)
     return example_message
 
