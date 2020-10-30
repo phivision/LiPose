@@ -81,12 +81,15 @@ def main(arguments):
 
     # support multi-gpu training
     if arguments.gpu_num >= 2:
-        # devices_list=["/gpu:0", "/gpu:1"]
-        devices_list = ["/gpu:{}".format(n) for n in range(arguments.gpu_num)]
+        if arguments.gpu_num == 2:
+            gpus = [0, 2]
+        else:
+            gpus = range(arguments.gpu_num)
+        devices_list = ["/gpu:{}".format(n) for n in gpus]
         strategy = tf.distribute.MirroredStrategy(devices=devices_list)
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
-            # get multi-gpu train model, doesn't specify input size
+            # get multi-gpu train model
             model = get_hourglass_model(num_classes, arguments.num_stacks, num_channels,
                                         input_size=(num_channels, num_channels))
             # compile model
@@ -107,10 +110,18 @@ def main(arguments):
         print('Load weights {}.'.format(arguments.weights_path))
 
     # start training
-    model.fit(train_dataset,
-              epochs=arguments.total_epoch,
-              initial_epoch=arguments.init_epoch,
-              callbacks=callbacks)
+    if arguments.gpu_num >= 2:
+        model.fit(train_dataset,
+                  epochs=arguments.total_epoch,
+                  initial_epoch=arguments.init_epoch,
+                  workers=arguments.gpu_num,
+                  use_multiprocessing=True,
+                  callbacks=callbacks)
+    else:
+        model.fit(train_dataset,
+                  epochs=arguments.total_epoch,
+                  initial_epoch=arguments.init_epoch,
+                  callbacks=callbacks)
 
     model.save(os.path.join(log_dir, 'trained_final.h5'))
     return

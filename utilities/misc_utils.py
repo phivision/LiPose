@@ -27,9 +27,9 @@ def optimize_tf_gpu(tensor_flow, backend):
             try:
                 # Currently, memory growth needs to be the same across GPUs
                 for gpu in gpus:
-                    config = [tensor_flow.config.experimental.VirtualDeviceConfiguration(memory_limit=10000)]
+                    # pay careful attention to the usage of GPU memory, over claim of memory will lead to problems
+                    config = [tensor_flow.config.experimental.VirtualDeviceConfiguration(memory_limit=9000)]
                     tensor_flow.config.experimental.set_virtual_device_configuration(gpu, config)
-                    # tf.config.experimental.set_memory_growth(gpu, True)
             except RuntimeError as e:
                 # Memory growth must be set before GPUs have been initialized
                 print(e)
