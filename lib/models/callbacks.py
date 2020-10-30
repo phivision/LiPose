@@ -25,6 +25,7 @@ from eval import eval_pck
 
 class EvalCallBack(Callback):
     def __init__(self, log_dir, dataset_path, class_names, input_size, model_type):
+        super().__init__()
         self.log_dir = log_dir
         self.dataset_path = dataset_path
         self.class_names = class_names

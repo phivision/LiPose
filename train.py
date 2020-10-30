@@ -27,8 +27,8 @@ from tensorflow.keras.losses import mean_squared_error
 
 from datasets.dataset_loader import load_surreal_data_training
 from lib.models.callbacks import EvalCallBack
-from lib.models.slim_hourglass import SlimHourglass
-from utilities.misc_utils import get_classes, get_match_points, get_model_type, optimize_tf_gpu
+from lib.models.slim_hourglass import get_hourglass_model
+from utilities.misc_utils import get_classes, get_model_type, optimize_tf_gpu
 from utilities.model_utils import get_optimizer
 
 # Try to enable Auto Mixed Precision on TF 2.0
@@ -87,12 +87,13 @@ def main(arguments):
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
             # get multi-gpu train model, doesn't specify input size
-            model = SlimHourglass(num_classes, arguments.num_stacks, num_channels)
+            model = get_hourglass_model(num_classes, arguments.num_stacks, num_channels,
+                                        input_size=(num_channels, num_channels))
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
     else:
         # get normal train model, doesn't specify input size
-        model = SlimHourglass(num_classes, arguments.num_stacks, num_channels)
+        model = get_hourglass_model(num_classes, arguments.num_stacks, num_channels)
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
 
@@ -118,7 +119,7 @@ def main(arguments):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Model definition options
-    parser.add_argument("--num_stacks", type=int, required=False, default=1,
+    parser.add_argument("--num_stacks", type=int, required=False, default=2,
                         help='number of hourglass stacks, default=%(default)s')
     parser.add_argument("--tiny", default=False, action="store_true",
                         help="tiny network for speed, feature channel=128")
