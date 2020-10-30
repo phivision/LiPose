@@ -40,7 +40,7 @@ def parse_tfr_tensor(element):
         'joints_3d': tf.io.parse_tensor(element['joints_3d'], out_type=tf.float32),
         'heat_map': tf.io.parse_tensor(element['heat_map'], out_type=tf.float32),
         'cam_loc': tf.io.parse_tensor(element['cam_loc'], out_type=tf.float32),
-        'name': tf.strings.unicode_decode(element['name'], input_encoding='UTF-8'),
+        'name': element['name'],
         'frame_index': element['frame_index'],
         'crop_box': element['crop_box']
     }

@@ -28,7 +28,10 @@ import numpy as np
 @click.command()
 @click.option('--input_file', help='input TFRecords file')
 def load_training_data_test(input_file: str):
-    dataset = load_surreal_data_training(Path(input_file), model_type='rgb')
+    dataset = load_surreal_data_training(Path(input_file), 16, model_type='rgb')
+    # count the total number of examples
+    count = int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
+    print(f"Total {count} examples in dataset: {input_file}")
     for rgb, heat_map in dataset.take(3):
         pylab.figure()
         pylab.imshow(rgb)

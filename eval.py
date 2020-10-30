@@ -192,7 +192,7 @@ def revert_keypoints(keypoints, element, heatmap_size):
     crop_box = element['crop_box']
     center = crop_box[:2]
     max_l = max(crop_box[2], crop_box[3])
-    scale = heatmap_size / (max_l + 0.0000001)
+    scale = max(heatmap_size) / (float(max_l) + 0.0000001)
     reverted_keypoints = invert_transform_kp(keypoints, center, scale, heatmap_size, rot=0)
 
     return reverted_keypoints
@@ -203,8 +203,7 @@ def save_keypoints_detection(pred_keypoints, metainfo, class_names, skeleton_lin
     touch_dir(result_dir)
 
     image_name = metainfo['name']
-    image = Image.open(image_name)
-    image_array = np.array(image, dtype='uint8')
+    image_array = metainfo['rgb'].numpy()
 
     gt_keypoints = metainfo['pts']
 
@@ -232,7 +231,7 @@ def save_keypoints_detection(pred_keypoints, metainfo, class_names, skeleton_lin
 
 
 def hourglass_predict_keras(model, image_data):
-    prediction = model.predict(image_data)
+    prediction = model.predict(tf.expand_dims(image_data, axis=0))
 
     # check to handle multi-output model
     if isinstance(prediction, list):
@@ -281,8 +280,7 @@ def get_result_dict(pred_keypoints, element):
     #  "score": float
     # }
 
-    image_name = element['name']
-    image_id = int(os.path.basename(image_name).split('.')[0])
+    image_id = element['name'].numpy().decode('ascii')
 
     result_dict = {}
     keypoints_list = []
@@ -320,15 +318,16 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
 
     count = 0
     batch_size = 1
-    pbar = tqdm(total=eval_dataset.get_dataset_size(), desc='Eval model')
+    total_example = int(eval_dataset.reduce(np.int64(0), lambda x, _: x + 1))
+    pbar = tqdm(total=total_example, desc='Eval model')
     for element in eval_dataset.take(batch_size):
         example = parse_tfr_tensor(element)
         image_data = example['rgb']
-        # gt_heatmap = element['heat_map']
-        # fetch validation data from daset, which will crop out single person area,
+        # gt_heatmap = example['heat_map']
+        # fetch validation data from dataset, which will crop out single person area,
         # resize to input_size and normalize image
         count += batch_size
-        if count > eval_dataset.get_dataset_size():
+        if count > total_example:
             break
 
         # support of tflite model
@@ -347,7 +346,7 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
         pred_keypoints = np.array(pred_keypoints)
 
         # get ground truth keypoints (transformed)
-        gt_keypoints = example['joints_2d']
+        gt_keypoints = example['joints_2d'].numpy().T
 
         # calculate succeed & failed keypoints for prediction
         result_list = keypoint_accuracy(pred_keypoints, gt_keypoints, score_threshold, normalize)

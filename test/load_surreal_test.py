@@ -31,6 +31,7 @@ def load_surreal_test(input_file: str):
     dataset = load_full_surreal_data(Path(input_file))
     for element in dataset.take(5):
         example = parse_tfr_tensor(element)
+        print(f"Loading data for image: {example['name'].numpy().decode('ascii')}")
         pylab.figure()
         pylab.imshow(example['rgb'])
         print(f"rgb image shape {example['rgb'].shape}")

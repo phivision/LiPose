@@ -71,7 +71,8 @@ def main(arguments):
     # callbacks for training process
     tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=False, write_grads=False,
                               write_images=False, update_freq='batch')
-    eval_callback = EvalCallBack(log_dir, arguments.dataset_path, class_names, input_size, model_type)
+    # load validation data for evaluation callback
+    eval_callback = EvalCallBack(log_dir, arguments.val_data_path, class_names, input_size, model_type)
     terminate_on_nan = TerminateOnNaN()
     callbacks = [tensorboard, eval_callback, terminate_on_nan]
 
@@ -108,9 +109,6 @@ def main(arguments):
     model.fit(train_dataset,
               epochs=arguments.total_epoch,
               initial_epoch=arguments.init_epoch,
-              workers=1,
-              use_multiprocessing=False,
-              max_queue_size=10,
               callbacks=callbacks)
 
     model.save(os.path.join(log_dir, 'trained_final.h5'))
@@ -133,6 +131,9 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_path', type=str, required=False,
                         default='/home/fanghao/Documents/surreal_tfrecords/train/run0.tfrecord',
                         help='dataset path containing images and annotation file, default=%(default)s')
+    parser.add_argument('--val_data_path', type=str, required=False,
+                        default='/home/fanghao/Documents/surreal_tfrecords/val/run0.tfrecord',
+                        help='dataset path for validation, default=%(default)s')
     parser.add_argument('--classes_path', type=str, required=False, default='datasets/surreal/joint_list.txt',
                         help='path to keypoint class definitions, default=%(default)s')
 
