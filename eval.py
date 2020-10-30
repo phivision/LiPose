@@ -34,16 +34,17 @@ from utilities.image_utils import invert_transform_kp
 from utilities.misc_utils import touch_dir, get_classes, get_skeleton, render_skeleton, optimize_tf_gpu
 from utilities.model_utils import get_normalize
 from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
+from datasets.dataset_converter import relative_joints
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 optimize_tf_gpu(tf, keras_backend)
 
 
-def check_pred_keypoints(pred_keypoint, gt_keypoint, threshold, normalize):
+def check_pred_joints(pred_keypoint, gt_keypoint, threshold, normalize):
     # check if ground truth keypoint is valid
     if gt_keypoint[0] > 1 and gt_keypoint[1] > 1:
-        # calculate normalized euclidean distance between pred and gt keypoints
+        # calculate normalized euclidean distance between pred and gt joints
         distance = np.linalg.norm(gt_keypoint[0:2] - pred_keypoint[0:2]) / normalize
         if distance < threshold:
             # succeed prediction
@@ -56,13 +57,13 @@ def check_pred_keypoints(pred_keypoint, gt_keypoint, threshold, normalize):
         return -1
 
 
-def keypoint_accuracy(pred_keypoints, gt_keypoints, threshold, normalize):
-    assert pred_keypoints.shape[0] == gt_keypoints.shape[0], 'keypoint number mismatch'
+def keypoint_accuracy(pred_joints, gt_joints, threshold, normalize):
+    assert pred_joints.shape[0] == gt_joints.shape[0], 'keypoint number mismatch'
 
     result_list = []
-    for i in range(gt_keypoints.shape[0]):
+    for i in range(gt_joints.shape[0]):
         # compare pred keypoint with gt keypoint to get result
-        result = check_pred_keypoints(pred_keypoints[i, :], gt_keypoints[i, :], threshold, normalize)
+        result = check_pred_joints(pred_joints[i, :], gt_joints[i, :], threshold, normalize)
         result_list.append(result)
 
     return result_list
@@ -178,11 +179,11 @@ def draw_plot_func(dictionary, n_classes, window_title, plot_title, x_label, out
     plt.close()
 
 
-def revert_keypoints(keypoints, element, heatmap_size):
+def revert_joints(joints, element, heatmap_size):
     """
-    invert transform keypoints based on center & scale
+    invert transform joints based on center & scale
     Args:
-        keypoints: 
+        joints:
         element: element of the dataset
         heatmap_size: 
 
@@ -193,33 +194,33 @@ def revert_keypoints(keypoints, element, heatmap_size):
     center = crop_box[:2]
     max_l = max(crop_box[2], crop_box[3])
     scale = max(heatmap_size) / (float(max_l) + 0.0000001)
-    reverted_keypoints = invert_transform_kp(keypoints, center, scale, heatmap_size, rot=0)
+    reverted_joints = invert_transform_kp(joints, center, scale, heatmap_size, rot=0)
 
-    return reverted_keypoints
+    return reverted_joints
 
 
-def save_keypoints_detection(pred_keypoints, metainfo, class_names, skeleton_lines):
+def save_joints_detection(pred_joints, metainfo, class_names, skeleton_lines):
     result_dir = os.path.join('result', 'detection')
     touch_dir(result_dir)
 
     image_name = metainfo['name']
     image_array = metainfo['rgb'].numpy()
 
-    gt_keypoints = metainfo['pts']
+    gt_joints = metainfo['pts']
 
-    # form up gt keypoints & predict keypoints dict
-    gt_keypoints_dict = {}
-    pred_keypoints_dict = {}
+    # form up gt joints & predict joints dict
+    gt_joints_dict = {}
+    pred_joints_dict = {}
 
-    for i, keypoint in enumerate(gt_keypoints):
-        gt_keypoints_dict[class_names[i]] = (keypoint[0], keypoint[1], 1.0)
+    for i, keypoint in enumerate(gt_joints):
+        gt_joints_dict[class_names[i]] = (keypoint[0], keypoint[1], 1.0)
 
-    for i, keypoint in enumerate(pred_keypoints):
-        pred_keypoints_dict[class_names[i]] = (keypoint[0], keypoint[1], keypoint[2])
+    for i, keypoint in enumerate(pred_joints):
+        pred_joints_dict[class_names[i]] = (keypoint[0], keypoint[1], keypoint[2])
 
-    # render gt and predict keypoints skeleton on image
-    image_array = render_skeleton(image_array, gt_keypoints_dict, skeleton_lines, colors=(255, 255, 255))
-    image_array = render_skeleton(image_array, pred_keypoints_dict, skeleton_lines)
+    # render gt and predict joints skeleton on image
+    image_array = render_skeleton(image_array, gt_joints_dict, skeleton_lines, colors=(255, 255, 255))
+    image_array = render_skeleton(image_array, pred_joints_dict, skeleton_lines)
 
     image = Image.fromarray(image_array)
     # here we handle the RGBA image
@@ -262,11 +263,11 @@ def hourglass_predict_tflite(interpreter, image_data):
     return heatmap
 
 
-def get_result_dict(pred_keypoints, element):
+def get_result_dict(pred_joints, element):
     """
     form up coco result dict with following format:
     Args:
-        pred_keypoints:
+        pred_joints:
         element: an element of dataset
 
     Returns:
@@ -276,25 +277,25 @@ def get_result_dict(pred_keypoints, element):
     # {
     #  "image_id": int,
     #  "category_id": int,
-    #  "keypoints": [x1,y1,v1,...,xk,yk,vk],
+    #  "joints": [x1,y1,v1,...,xk,yk,vk],
     #  "score": float
     # }
 
     image_id = element['name'].numpy().decode('ascii')
 
     result_dict = {}
-    keypoints_list = []
+    joints_list = []
     result_score = 0.0
-    for i, keypoint in enumerate(pred_keypoints):
-        keypoints_list.append(keypoint[0])
-        keypoints_list.append(keypoint[1])
-        keypoints_list.append(1)  # visibility value. simply set vk=1
+    for i, keypoint in enumerate(pred_joints):
+        joints_list.append(keypoint[0])
+        joints_list.append(keypoint[1])
+        joints_list.append(1)  # visibility value. simply set vk=1
         result_score += keypoint[2]
 
     result_dict['image_id'] = image_id
     result_dict['category_id'] = 1  # person id
-    result_dict['keypoints'] = keypoints_list
-    result_dict['score'] = result_score / len(pred_keypoints)
+    result_dict['joints'] = joints_list
+    result_dict['score'] = result_score / len(pred_joints)
     return result_dict
 
 
@@ -306,29 +307,24 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
     accuracy_dict = {class_name: 0. for class_name in class_names}
 
     # init output list for coco result json generation
-    # coco keypoints result is a list of following format dict:
+    # coco joints result is a list of following format dict:
     # {
     #  "image_id": int,
     #  "category_id": int,
-    #  "keypoints": [x1,y1,v1,...,xk,yk,vk],
+    #  "joints": [x1,y1,v1,...,xk,yk,vk],
     #  "score": float
     # }
     #
     output_list = []
 
     count = 0
-    batch_size = 1
     total_example = int(eval_dataset.reduce(np.int64(0), lambda x, _: x + 1))
     pbar = tqdm(total=total_example, desc='Eval model')
-    for element in eval_dataset.take(batch_size):
+    for element in eval_dataset.take(total_example):
         example = parse_tfr_tensor(element)
         image_data = example['rgb']
         # gt_heatmap = example['heat_map']
         # fetch validation data from dataset, which will crop out single person area,
-        # resize to input_size and normalize image
-        count += batch_size
-        if count > total_example:
-            break
 
         # support of tflite model
         if model_format == 'TFLITE':
@@ -341,15 +337,18 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
 
         heatmap_size = heatmap.shape[0:2]
 
-        # get predict keypoints from heatmap
-        pred_keypoints = post_process_heatmap(heatmap, conf_threshold)
-        pred_keypoints = np.array(pred_keypoints)
+        # get predict joints from heatmap
+        pred_joints = post_process_heatmap(heatmap, conf_threshold)
+        pred_joints = np.array(pred_joints)
 
-        # get ground truth keypoints (transformed)
-        gt_keypoints = example['joints_2d'].numpy().T
+        # get ground truth joints (transformed)
+        crop_box = example['crop_box'].numpy()
+        joints_2d = example['joints_2d'].numpy()
+        padding = [[0, 0], [0, 0]]
+        gt_joints = relative_joints(crop_box, padding, joints_2d).T
 
-        # calculate succeed & failed keypoints for prediction
-        result_list = keypoint_accuracy(pred_keypoints, gt_keypoints, score_threshold, normalize)
+        # calculate succeed & failed joints for prediction
+        result_list = keypoint_accuracy(pred_joints, gt_joints, score_threshold, normalize)
 
         for i, class_name in enumerate(class_names):
             if result_list[i] == 0:
@@ -357,23 +356,23 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
             elif result_list[i] == 1:
                 succeed_dict[class_name] = succeed_dict[class_name] + 1
 
-        # revert predict keypoints back to origin image size
-        reverted_pred_keypoints = revert_keypoints(pred_keypoints, example, heatmap_size)
+        # revert predict joints back to origin image size
+        reverted_pred_joints = revert_joints(pred_joints, example, heatmap_size)
 
-        # get coco result dict with predict keypoints and image info
-        result_dict = get_result_dict(reverted_pred_keypoints, example)
+        # get coco result dict with predict joints and image info
+        result_dict = get_result_dict(reverted_pred_joints, example)
         # add result dict to output list
         output_list.append(result_dict)
 
         if save_result:
-            # render keypoints skeleton on image and save result
-            save_keypoints_detection(reverted_pred_keypoints, example, class_names, skeleton_lines)
-        pbar.update(batch_size)
+            # render joints skeleton on image and save result
+            save_joints_detection(reverted_pred_joints, example, class_names, skeleton_lines)
+        pbar.update(1)
     pbar.close()
 
     # save to coco result json
     touch_dir('result')
-    json_fp = open(os.path.join('result', 'keypoints_result.json'), 'w')
+    json_fp = open(os.path.join('result', 'joints_result.json'), 'w')
     json_str = json.dumps(output_list)
     json_fp.write(json_str)
     json_fp.close()
@@ -382,7 +381,7 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
     for i, class_name in enumerate(class_names):
         accuracy_dict[class_name] = succeed_dict[class_name] * 1.0 / (succeed_dict[class_name] + fail_dict[class_name])
 
-    # get PCK accuracy from succeed & failed keypoints
+    # get PCK accuracy from succeed & failed joints
     total_succeed = np.sum(list(succeed_dict.values()))
     total_fail = np.sum(list(fail_dict.values()))
     total_accuracy = total_succeed * 1.0 / (total_fail + total_succeed)
