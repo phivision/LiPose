@@ -27,7 +27,7 @@ from tensorflow.keras.losses import mean_squared_error
 
 from datasets.dataset_loader import load_surreal_data_training
 from lib.models.callbacks import EvalCallBack
-from lib.models.slim_hourglass import get_hourglass_model
+from lib.models.stacked_hourglass import get_mobile_hg_model
 from utilities.misc_utils import get_classes, get_model_type, optimize_tf_gpu
 from utilities.model_utils import get_optimizer
 
@@ -88,13 +88,13 @@ def main(arguments):
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
             # get multi-gpu train model
-            model = get_hourglass_model(num_classes, arguments.num_stacks, resolution,
+            model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution,
                                         input_size=(resolution, resolution))
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
     else:
         # get normal train model, doesn't specify input size
-        model = get_hourglass_model(num_classes, arguments.num_stacks, resolution)
+        model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
 
