@@ -55,11 +55,9 @@ def main(arguments):
 
     # choose model type
     if arguments.tiny:
-        num_channels = 128
-        # input_size = (192, 192)
+        resolution = 128
     else:
-        num_channels = 256
-        # input_size = (256, 256)
+        resolution = 256
 
     input_size = arguments.model_image_size
 
@@ -90,18 +88,18 @@ def main(arguments):
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
             # get multi-gpu train model
-            model = get_hourglass_model(num_classes, arguments.num_stacks, num_channels,
-                                        input_size=(num_channels, num_channels))
+            model = get_hourglass_model(num_classes, arguments.num_stacks, resolution,
+                                        input_size=(resolution, resolution))
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
     else:
         # get normal train model, doesn't specify input size
-        model = get_hourglass_model(num_classes, arguments.num_stacks, num_channels)
+        model = get_hourglass_model(num_classes, arguments.num_stacks, resolution)
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
 
     print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
-          f"channel number {num_channels}. "
+          f"channel number {resolution}. "
           f"train input size {input_size}")
     model.summary()
 
