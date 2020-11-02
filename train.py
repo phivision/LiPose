@@ -42,7 +42,7 @@ optimize_tf_gpu(tf, keras_backend)
 
 
 def main(arguments):
-    log_dir = 'logs/000'
+    log_dir = arguments.log_path
     os.makedirs(log_dir, exist_ok=True)
 
     class_names = get_classes(arguments.classes_path)
@@ -148,6 +148,8 @@ if __name__ == "__main__":
                         help='dataset path for validation, default=%(default)s')
     parser.add_argument('--classes_path', type=str, required=False, default='datasets/surreal/joint_list.txt',
                         help='path to keypoint class definitions, default=%(default)s')
+    parser.add_argument('--log_path', type=str, required=False, default='logs/000',
+                        help="Path to set log files and trained models")
 
     # Training options
     parser.add_argument("--batch_size", type=int, required=False, default=16,

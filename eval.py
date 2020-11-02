@@ -26,13 +26,12 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as keras_backend
 from PIL import Image
-from tensorflow.keras.models import load_model
 from tqdm import tqdm
 
 from lib.postprocessing import post_process_heatmap
 from utilities.image_utils import invert_transform_kp
 from utilities.misc_utils import touch_dir, get_classes, get_skeleton, render_skeleton, optimize_tf_gpu
-from utilities.model_utils import get_normalize
+from utilities.model_utils import load_eval_model, get_normalize
 from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
 from datasets.dataset_converter import relative_joints
 
@@ -317,7 +316,6 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
     #
     output_list = []
 
-    count = 0
     total_example = int(eval_dataset.reduce(np.int64(0), lambda x, _: x + 1))
     pbar = tqdm(total=total_example, desc='Eval model')
     for element in eval_dataset.take(total_example):
@@ -398,25 +396,6 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
                        plot_color='royalblue', true_p_bar='')
 
     return total_accuracy, accuracy_dict
-
-
-def load_eval_model(model_path):
-    # support of tflite model
-    if model_path.endswith('.tflite'):
-        from tensorflow.lite.python import interpreter as interpreter_wrapper
-        model = interpreter_wrapper.Interpreter(model_path=model_path)
-        model.allocate_tensors()
-        model_format = 'TFLITE'
-
-    # normal keras h5 model
-    elif model_path.endswith('.h5'):
-        model = load_model(model_path, compile=False)
-        model_format = 'H5'
-        keras_backend.set_learning_phase(0)
-    else:
-        raise ValueError('invalid model file')
-
-    return model, model_format
 
 
 def main():

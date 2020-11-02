@@ -19,7 +19,54 @@ Fanghao Yang 10/28/2020
 from tensorflow.keras.optimizers import Adam, RMSprop, SGD
 from tensorflow.keras.optimizers.schedules import ExponentialDecay, PolynomialDecay
 from tensorflow.keras.experimental import CosineDecay
+from tensorflow.keras.models import load_model
+import tensorflow.keras.backend as keras_backend
 import tensorflow_model_optimization as tfmot
+import coremltools as ct
+
+
+def load_eval_model(model_path):
+    """Load trained models
+
+    Args:
+        model_path:
+
+    Returns:
+        model object, model extension string
+    """
+    # support of tflite model
+    if model_path.endswith('.tflite'):
+        from tensorflow.lite.python import interpreter as interpreter_wrapper
+        model = interpreter_wrapper.Interpreter(model_path=model_path)
+        model.allocate_tensors()
+        model_format = 'TFLITE'
+
+    # normal keras h5 model
+    elif model_path.endswith('.h5'):
+        model = load_model(model_path, compile=False)
+        model_format = 'H5'
+        keras_backend.set_learning_phase(0)
+    else:
+        raise ValueError('invalid model file')
+
+    return model, model_format
+
+
+def convert_keras_to_coreml(input_path, input_shape, output_path):
+    """Convert TF Keras model to iOS CoreML model
+
+    Args:
+        input_path: input model path
+        input_shape: shape of image image
+        output_path: output path to save model
+
+    Returns:
+
+    """
+    tfk_model, _ = load_eval_model(input_path)
+    input_type = ct.ImageType(shape=input_shape)
+    ct_model = ct.convert(tfk_model, inputs=[input_type])
+    ct_model.save(output_path)
 
 
 def add_metrics(model, metric_dict):
