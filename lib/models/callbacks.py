@@ -24,7 +24,7 @@ from eval import eval_pck
 
 
 class EvalCallBack(Callback):
-    def __init__(self, log_dir, dataset_path, class_names, input_size, model_type):
+    def __init__(self, log_dir, dataset_path, class_names, input_size, model_type, image_type):
         super().__init__()
         self.log_dir = log_dir
         self.dataset_path = dataset_path
@@ -32,6 +32,7 @@ class EvalCallBack(Callback):
         self.normalize = get_normalize(input_size)
         self.input_size = input_size
         self.best_accuracy = 0.0
+        self.image_type = image_type
 
         # record model & dataset name to draw training curve
         with open(os.path.join(self.log_dir, 'val.txt'), 'a+') as xfile:
@@ -42,6 +43,7 @@ class EvalCallBack(Callback):
         val_dataset = load_full_surreal_data(self.dataset_path)
 
         val_acc, _ = eval_pck(self.model, 'H5', val_dataset, self.class_names,
+                              image_type=self.image_type,
                               score_threshold=0.5,
                               normalize=self.normalize,
                               conf_threshold=1e-6,

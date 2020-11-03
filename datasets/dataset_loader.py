@@ -20,6 +20,7 @@ By Fanghao Yang, 10/15/2020
 
 import tensorflow as tf
 from pathlib import Path
+from functools import partial
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -71,23 +72,31 @@ def _parse_tfr_element(element):
     return example_message
 
 
-def _parse_tfr_rgb_training(element):
+def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
     """
-    Parse TFRecord for rgb model training, which only generate partial data
+    Parse TFRecord for model training, which only generate partial data
     Args:
         element: an element in raw TFRecord dataset
+        image_type: parse the serialized data based on the type for model input
+        num_features: number of features (pixel resolution) of image data
 
     Returns:
         rgb tensor, heat map tensor
     """
     example_message = _parse_tfr_element(element)
-    rgb = tf.io.parse_tensor(example_message['rgb'], out_type=tf.uint8)
+    if image_type == 'rgb':
+        image = tf.io.parse_tensor(example_message['rgb'], out_type=tf.uint8)
+        num_input_ch = 3
+    elif image_type == 'depth':
+        image = tf.io.parse_tensor(example_message['depth'], out_type=tf.float32)
+        num_input_ch = 1
+    else:
+        raise TypeError(f"Do not support image type {image_type}")
     heatmap = tf.io.parse_tensor(example_message['heat_map'], out_type=tf.float32)
     # the TFRecord dataset generator cannot explicitly generate datatype and cast data
     # we have to explicitly do it to match the input shape and datatype
-    # TODO: the input shape is hard coded, try to use an argument with partial lib
-    rgb = tf.cast(tf.reshape(rgb, (256, 256, 3)), dtype=tf.float16)
-    return rgb, heatmap
+    image = tf.cast(tf.reshape(image, (num_features, num_features, num_input_ch)), dtype=tf.float32)
+    return image, heatmap
 
 
 def _load_tfr_data(data_path: Path):
@@ -115,15 +124,14 @@ def load_full_surreal_data(data_path: Path):
     return dataset
 
 
-def load_surreal_data_training(data_path: Path, batch_size: int, shuffle: bool = True, model_type: str = 'rgb'):
+def load_surreal_data_training(data_path: Path,
+                               batch_size: int,
+                               shuffle: bool = True,
+                               num_features: int = 256,
+                               image_type: str = 'rgb'):
     tfr_data = _load_tfr_data(data_path)
-    if model_type == 'rgb':
-        dataset = tfr_data.map(_parse_tfr_rgb_training, num_parallel_calls=AUTOTUNE)
-    elif model_type == 'depth':
-        # TODO: finish depth training data parser
-        dataset = tfr_data.map(_parse_tfr_rgb_training, num_parallel_calls=AUTOTUNE)
-    else:
-        raise TypeError(f"Do not support load training data for {model_type} model!")
+    parse_func = partial(_parse_tfr_rgb_training, image_type=image_type, num_features=num_features)
+    dataset = tfr_data.map(parse_func, num_parallel_calls=AUTOTUNE)
     if shuffle:
         dataset = dataset.shuffle(2048)
     dataset = dataset.batch(batch_size).prefetch(buffer_size=AUTOTUNE)

@@ -232,7 +232,8 @@ def save_joints_detection(pred_joints, metainfo, class_names, skeleton_lines):
 
 
 def hourglass_predict_keras(model, image_data):
-    prediction = model.predict(tf.expand_dims(tf.cast(image_data, dtype=tf.float16), axis=0))
+    # cast the raw image datatype (uint8 or float) to float32
+    prediction = model.predict(tf.expand_dims(tf.cast(image_data, dtype=tf.float32), axis=0))
     # check to handle multi-output model
     if isinstance(prediction, list):
         prediction = prediction[-1]
@@ -298,9 +299,33 @@ def get_result_dict(pred_joints, element):
     return result_dict
 
 
-def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, normalize, conf_threshold,
-             save_result=False, skeleton_lines=None):
+def eval_pck(model,
+             model_format,
+             eval_dataset,
+             class_names,
+             score_threshold,
+             normalize,
+             conf_threshold,
+             image_type='rgb',
+             save_result=False,
+             skeleton_lines=None):
+    """Evaluate trained model
 
+    Args:
+        model:
+        model_format: serialization format of model, e.g. TFLITE, PB, H5
+        eval_dataset: path to evaluation dataset
+        class_names: name of joint labels (classes)
+        score_threshold:
+        normalize:
+        conf_threshold:
+        image_type: type of image for model input, e.g. rgb, depth, etc
+        save_result: if save evaluation result
+        skeleton_lines:
+
+    Returns:
+
+    """
     succeed_dict = {class_name: 0 for class_name in class_names}
     fail_dict = {class_name: 0 for class_name in class_names}
     accuracy_dict = {class_name: 0. for class_name in class_names}
@@ -317,12 +342,18 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
     output_list = []
 
     total_example = count_tfrecord_examples(eval_dataset)
-    pbar = tqdm(total=total_example, desc='Eval model')
+    p_bar = tqdm(total=total_example, desc='Eval model')
+    # fetch validation data from dataset, which will crop out single person area,
     for element in eval_dataset.take(total_example):
         example = parse_tfr_tensor(element)
-        image_data = example['rgb']
+        if image_type == 'rgb':
+            image_data = example[image_type]
+        elif image_type == 'depth':
+            # insert image channel index to the shape of depth map
+            image_data = tf.expand_dims(example[image_type], -1)
+        else:
+            raise TypeError(f"Do not support image type {image_type}")
         # gt_heatmap = example['heat_map']
-        # fetch validation data from dataset, which will crop out single person area,
 
         # support of tflite model
         if model_format == 'TFLITE':
@@ -366,8 +397,8 @@ def eval_pck(model, model_format, eval_dataset, class_names, score_threshold, no
         if save_result:
             # render joints skeleton on image and save result
             save_joints_detection(reverted_pred_joints, example, class_names, skeleton_lines)
-        pbar.update(1)
-    pbar.close()
+        p_bar.update(1)
+    p_bar.close()
 
     # save to coco result json
     touch_dir('result')
@@ -441,6 +472,9 @@ def main():
         '--skeleton_path', type=str, required=False,
         help='path to keypoint skeleton definitions, default None', default=None)
 
+    parser.add_argument('--image_type', type=str, required=False, default='rgb',
+                        help="Type of model input, e.g. rgb, depth map, etc")
+
     args = parser.parse_args()
 
     # param parse
@@ -459,7 +493,8 @@ def main():
     eval_dataset = load_full_surreal_data(args.dataset_path)
 
     total_accuracy, accuracy_dict = eval_pck(model, model_format, eval_dataset, class_names, args.score_threshold,
-                                             normalize, args.conf_threshold, args.save_result, skeleton_lines)
+                                             normalize, args.conf_threshold, args.image_type, args.save_result,
+                                             skeleton_lines)
 
     print('\nPCK evaluation')
     for (class_name, accuracy) in accuracy_dict.items():

@@ -52,25 +52,23 @@ def main(arguments):
     #     matchpoints = get_match_points(arguments.matchpoint_path)
     # else:
     #     matchpoints = None
-
-    # choose model type
-    if arguments.tiny:
-        num_features = 128
-    else:
-        num_features = 256
-
-    input_size = arguments.model_image_size
+    image_type = arguments.image_type
 
     # get train dataset
-    train_dataset = load_surreal_data_training(arguments.dataset_path, arguments.batch_size, shuffle=True)
-
+    train_dataset = load_surreal_data_training(arguments.dataset_path,
+                                               arguments.batch_size,
+                                               shuffle=True,
+                                               image_type=image_type)
+    # check if the dataset matches the arguments
+    input_size = None
+    for image, _ in train_dataset.take(1):
+        input_size = image.shape[1:]
     model_type = get_model_type(arguments.num_stacks, True, arguments.tiny, input_size)
-
     # callbacks for training process
     tensorboard = TensorBoard(log_dir=log_dir, histogram_freq=0, write_graph=False, write_grads=False,
                               write_images=False, update_freq='batch')
     # load validation data for evaluation callback
-    eval_callback = EvalCallBack(log_dir, arguments.val_data_path, class_names, input_size, model_type)
+    eval_callback = EvalCallBack(log_dir, arguments.val_data_path, class_names, input_size, model_type, image_type)
     terminate_on_nan = TerminateOnNaN()
     callbacks = [tensorboard, eval_callback, terminate_on_nan]
 
@@ -88,22 +86,24 @@ def main(arguments):
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
             # get multi-gpu train model
-            model = StackedHourglass(arguments.num_stacks, num_classes, num_features)
-            model.build((1, num_features, num_features, 3))
+            model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
+                                                     tiny=arguments.tiny,
+                                                     image_type=image_type)
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
     else:
         # get normal train model, doesn't specify input size
         # model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
-        model = StackedHourglass(arguments.num_stacks, num_classes, num_features)
-        model.build((1, num_features, num_features, 3))
+        model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
+                                                 tiny=arguments.tiny,
+                                                 image_type=image_type)
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
 
     print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
-          f"channel number {num_features}. "
+          f"channel number {model.num_features}. "
           f"train input size {input_size}")
-    model.summary()
+    model.summary(line_length=120)
 
     if arguments.weights_path:
         model.load_weights(arguments.weights_path, by_name=True)  # , skip_mismatch=True)
@@ -112,7 +112,7 @@ def main(arguments):
     # start training
     model.fit(train_dataset,
               epochs=arguments.total_epoch,
-              steps_per_epoch=count_tfrecord_examples(train_dataset) // arguments.batch_size,
+              steps_per_epoch=count_tfrecord_examples(train_dataset),
               initial_epoch=arguments.init_epoch,
               workers=arguments.gpu_num,
               use_multiprocessing=True,
@@ -129,10 +129,10 @@ if __name__ == "__main__":
                         help='number of hourglass stacks, default=%(default)s')
     parser.add_argument("--tiny", default=False, action="store_true",
                         help="tiny network for speed, feature channel=128")
-    parser.add_argument('--model_image_size', type=str, required=False, default='256x256',
-                        help="model image input size as <height>x<width>, default=%(default)s")
     parser.add_argument('--weights_path', type=str, required=False, default=None,
                         help="Pretrained model/weights file for fine tune")
+    parser.add_argument('--image_type', type=str, required=False, default='rgb',
+                        help="Type of model input, e.g. rgb, depth map, etc")
 
     # Data options
     parser.add_argument('--dataset_path', type=str, required=False,
@@ -161,7 +161,5 @@ if __name__ == "__main__":
                         help='Number of GPU to use, default=%(default)s')
 
     args = parser.parse_args()
-    height, width = args.model_image_size.split('x')
-    args.model_image_size = (int(height), int(width))
 
     main(args)

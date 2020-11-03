@@ -22,13 +22,13 @@ import numpy as np
 
 
 def count_tfrecord_examples(dataset) -> int:
-    """Count the total number of examples in TFRecord dataset
-
+    """Count the total number of mini batches in TFRecord dataset
+    This is the number of mini batch, if need total example, multiply by batch size
     Args:
         dataset: TFRecord dataset
 
     Returns:
-        number of examples
+        number of mini batches
     """
     return int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
 

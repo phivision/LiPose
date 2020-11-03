@@ -26,19 +26,27 @@ from tensorflow.python.eager import backprop
 class StackedHourglass(Model):
     """Subclassing model for fully customized network"""
 
-    def __init__(self, num_stacks: int, num_classes: int, num_features: int, mobile=True):
-        super(StackedHourglass, self).__init__()
+    def __init__(self,
+                 num_stacks: int,
+                 num_classes: int,
+                 num_features: int,
+                 num_img_ch: int = 3,
+                 mobile=True):
+        super(StackedHourglass, self).__init__(name=f"Stacked_{num_stacks}_Hourglass")
         self._front_module = FrontModule(num_features, mobile=mobile)
         self._hourglasses = [Hourglass(num_classes, num_features, i, mobile=mobile) for i in range(num_stacks)]
         self.num_stacks = num_stacks
         self.num_classes = num_classes
         self.num_features = num_features
         self.mobile = mobile
+        # number of image channels, e.g. 3 for rgb, 1 for depth
+        self.num_img_channels = num_img_ch
 
     def get_config(self):
         return {'num_stacks': self.num_stacks,
                 'num_classes': self.num_classes,
                 'num_features': self.num_features,
+                'num_img_ch': self.num_img_channels,
                 'mobile': self.mobile}
 
     def call(self, inputs, training=None, mask=None):
@@ -66,15 +74,35 @@ class StackedHourglass(Model):
         self.compiled_metrics.update_state(y, y_pred, None)
         return {m.name: m.result() for m in self.metrics}
 
-    # @classmethod
-    # def from_shape_type(cls, num_classes, num_stacks, num_features, input_shape=(256, 256), input_type='rgb'):
-    #     if input_type == 'rgb':
-    #         tensor_shape = (input_shape[0], input_shape[1], 3)
-    #     elif input_type == 'depth':
-    #         tensor_shape = (input_shape[0], input_shape[1])
-    #     else:
-    #         raise TypeError(f"Current model do not support {input_type} as inputs!")
-    #     return cls(num_classes, num_stacks, num_features, tensor_shape)
+    def summary(self, line_length=None, positions=None, print_fn=None):
+        _x = Input(shape=(self.num_features, self.num_features, self.num_img_channels))
+        model = Model(inputs=[_x], outputs=self.call(_x), name=self.name)
+        return model.summary(line_length=line_length)
+
+    @classmethod
+    def from_shape_type(cls, num_stacks, num_classes, tiny=False, image_type='rgb'):
+        """Generate a stacked hourglass network based on input shape and type
+
+        Args:
+            num_stacks:
+            num_classes:
+            tiny: if create tiny model for speed
+            image_type: type of input, e.g. 'rgb' for RGB image, 'depth' for depth map
+
+        Returns:
+
+        """
+        if image_type == 'rgb':
+            num_image_ch = 3
+        elif image_type == 'depth':
+            num_image_ch = 1
+        else:
+            raise TypeError(f"Current model do not support {image_type} as inputs!")
+        if tiny:
+            num_features = 128
+        else:
+            num_features = 256
+        return cls(num_stacks, num_classes, num_features, num_img_ch=num_image_ch, mobile=True)
 
 
 def get_mobile_hg_model(num_classes, num_stacks, num_features, input_size=None, input_type='rgb'):

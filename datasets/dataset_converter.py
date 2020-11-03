@@ -37,6 +37,8 @@ IMG_WIDTH = 256
 # heat map size
 HEAT_MAP_HEIGHT = 64
 HEAT_MAP_WIDTH = 64
+# background threshold, value to differentiate the human object from backgrnd
+BG_THRESHOLD = 100
 
 
 # Utility functions to serialize numpy array as byte string
@@ -211,6 +213,8 @@ def _generate_new_depth(new_height, new_width, raw_depth):
     raw_width = raw_depth.shape[1]
     shift = [(new_width - raw_width)//2, (new_height - raw_height)//2]
     new_map[shift[1]:shift[1]+raw_height, :] = raw_depth[:, -shift[0]:-shift[0]+new_width]
+    background_depth = max(new_map[new_map < BG_THRESHOLD]) * 2.0
+    new_map[new_map > BG_THRESHOLD] = background_depth
     return new_map, shift
 
 
