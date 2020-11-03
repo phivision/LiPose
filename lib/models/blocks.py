@@ -14,7 +14,8 @@
 # from Phi Vision, Inc.
 
 """
-Basic building blocks of hourglass model
+Basic building blocks of hourglass model, contains hourglass models using both subclassing API and functional API.
+Subclassing API provides richer options to customize the model.
 Fanghao Yang, 10/25/2020
 """
 from tensorflow.keras.layers import Layer, Conv2D, SeparableConv2D, BatchNormalization, MaxPool2D, Add, UpSampling2D
@@ -22,7 +23,7 @@ import tensorflow.keras.backend as k_backend
 
 
 class FrontModule(Layer):
-    """OOP style definition of the front module"""
+    """OOP style definition (subclassing) of the front module"""
 
     def __init__(self, num_features, block_name='front_module', mobile=True):
         """
@@ -40,7 +41,8 @@ class FrontModule(Layer):
                               strides=(2, 2),
                               padding='same',
                               activation='relu',
-                              name='front_conv_1x1_x1')
+                              name='front_conv_1x1_x1',
+                              input_shape=(num_features, num_features, 3))
         self._batch_norm = BatchNormalization()
         self._max_pool_2d = MaxPool2D(pool_size=(2, 2), strides=(2, 2))
         self._bottleneck_blocks = [Bottleneck(num_features // 2, 'front_residual_x1', mobile=mobile),
@@ -76,7 +78,7 @@ class Hourglass(Layer):
         self._lf2 = Bottleneck(num_features, hg_name + '_l2', mobile=mobile)
         self._lf4 = Bottleneck(num_features, hg_name + '_l4', mobile=mobile)
         self._lf8 = Bottleneck(num_features, hg_name + '_l8', mobile=mobile)
-        self._max_pools = [MaxPool2D(pool_size=(2, 2), strides=(2, 2)) for i in range(3)]
+        self._max_pools = [MaxPool2D(pool_size=(2, 2), strides=(2, 2)) for _ in range(3)]
         # create right features, connect with left features
         self._rf8 = Bottom(num_features, hg_id, mobile=mobile)
         self._rf4 = Connector(num_features, 'hg' + str(hg_id) + '_rf4', mobile=mobile)

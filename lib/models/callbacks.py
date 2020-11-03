@@ -19,7 +19,7 @@ Fanghao Yang, 10/29/2020
 import os
 from tensorflow.keras.callbacks import Callback
 from datasets.dataset_loader import load_full_surreal_data
-from utilities.model_utils import get_normalize
+from utilities.model_utils import get_normalize, save_model
 from eval import eval_pck
 
 
@@ -56,8 +56,7 @@ class EvalCallBack(Callback):
         if val_acc > self.best_accuracy:
             # Save best accuracy value and model checkpoint
             self.best_accuracy = val_acc
-            model_file = 'ep{epoch:03d}-loss{loss:.3f}-val_acc{val_acc:.3f}.h5'.format(epoch=(epoch+1),
-                                                                                       loss=logs.get('loss'),
-                                                                                       val_acc=val_acc)
-            print("Saving model to", model_file)
-            self.model.save(os.path.join(self.log_dir, model_file))
+            model_name = 'ep{epoch:03d}-loss{loss:.3f}-val_acc{val_acc:.3f}'.format(epoch=(epoch + 1),
+                                                                                    loss=logs.get('loss'),
+                                                                                    val_acc=val_acc)
+            save_model(self.model, self.log_dir, model_name)

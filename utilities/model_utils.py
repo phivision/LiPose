@@ -19,10 +19,13 @@ Fanghao Yang 10/28/2020
 from tensorflow.keras.optimizers import Adam, RMSprop, SGD
 from tensorflow.keras.optimizers.schedules import ExponentialDecay, PolynomialDecay
 from tensorflow.keras.experimental import CosineDecay
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model, Model
+from lib.models.stacked_hourglass import StackedHourglass
+from pathlib import Path
 import tensorflow.keras.backend as keras_backend
 import tensorflow_model_optimization as tfmot
 import coremltools as ct
+import os
 
 
 def load_eval_model(model_path):
@@ -35,21 +38,47 @@ def load_eval_model(model_path):
         model object, model extension string
     """
     # support of tflite model
-    if model_path.endswith('.tflite'):
+    model_path = Path(model_path)
+    if model_path.suffix == '.tflite':
         from tensorflow.lite.python import interpreter as interpreter_wrapper
         model = interpreter_wrapper.Interpreter(model_path=model_path)
         model.allocate_tensors()
         model_format = 'TFLITE'
-
     # normal keras h5 model
-    elif model_path.endswith('.h5'):
+    elif model_path.suffix == '.h5':
         model = load_model(model_path, compile=False)
         model_format = 'H5'
         keras_backend.set_learning_phase(0)
+    elif os.path.isdir(model_path):
+        # load from tensorflow weights
+        model = load_model(model_path)
+        # model is saved as tensorflow protobuf serialized model
+        model_format = 'PB'
     else:
         raise ValueError('invalid model file')
 
     return model, model_format
+
+
+def save_model(model: Model, log_path, model_name):
+    """
+    
+    Args:
+        model: model obj to be saved
+        log_path: log dir path
+        model_name: name of trained model
+
+    Returns:
+
+    """
+    print(f"Saving model to {log_path} as {model_name}")
+    if isinstance(model, StackedHourglass):
+        # this a customized subclassing model, need to saved as tf format
+        save_path = os.path.join(log_path, model_name)
+        model.save(save_path)
+    else:
+        save_path = os.path.join(log_path, model_name + '.h5')
+        model.save(save_path)
 
 
 def convert_keras_to_coreml(input_path, input_shape, output_path):

@@ -83,6 +83,10 @@ def _parse_tfr_rgb_training(element):
     example_message = _parse_tfr_element(element)
     rgb = tf.io.parse_tensor(example_message['rgb'], out_type=tf.uint8)
     heatmap = tf.io.parse_tensor(example_message['heat_map'], out_type=tf.float32)
+    # the TFRecord dataset generator cannot explicitly generate datatype and cast data
+    # we have to explicitly do it to match the input shape and datatype
+    # TODO: the input shape is hard coded, try to use an argument with partial lib
+    rgb = tf.cast(tf.reshape(rgb, (256, 256, 3)), dtype=tf.float16)
     return rgb, heatmap
 
 
@@ -97,7 +101,7 @@ def _load_tfr_data(data_path: Path):
 
 def load_full_surreal_data(data_path: Path):
     """
-    Load SURREAL TFRecord data and parsed as a dict a dict
+    Load SURREAL TFRecord data and parsed as a dict
     Args:
         data_path: file path to TFRecord
 

@@ -27,9 +27,9 @@ from tensorflow.keras.losses import mean_squared_error
 
 from datasets.dataset_loader import load_surreal_data_training
 from lib.models.callbacks import EvalCallBack
-from lib.models.stacked_hourglass import get_mobile_hg_model
-from utilities.misc_utils import get_classes, get_model_type, optimize_tf_gpu
-from utilities.model_utils import get_optimizer
+from lib.models.stacked_hourglass import StackedHourglass
+from utilities.misc_utils import get_classes, get_model_type, optimize_tf_gpu, count_tfrecord_examples
+from utilities.model_utils import get_optimizer, save_model
 
 # Try to enable Auto Mixed Precision on TF 2.0
 os.environ['TF_ENABLE_AUTO_MIXED_PRECISION'] = '1'
@@ -55,13 +55,13 @@ def main(arguments):
 
     # choose model type
     if arguments.tiny:
-        resolution = 128
+        num_features = 128
     else:
-        resolution = 256
+        num_features = 256
 
     input_size = arguments.model_image_size
 
-    # get train/val dataset
+    # get train dataset
     train_dataset = load_surreal_data_training(arguments.dataset_path, arguments.batch_size, shuffle=True)
 
     model_type = get_model_type(arguments.num_stacks, True, arguments.tiny, input_size)
@@ -88,18 +88,20 @@ def main(arguments):
         print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
         with strategy.scope():
             # get multi-gpu train model
-            model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution,
-                                        input_size=(resolution, resolution))
+            model = StackedHourglass(arguments.num_stacks, num_classes, num_features)
+            model.build((1, num_features, num_features, 3))
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
     else:
         # get normal train model, doesn't specify input size
-        model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
+        # model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
+        model = StackedHourglass(arguments.num_stacks, num_classes, num_features)
+        model.build((1, num_features, num_features, 3))
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
 
     print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
-          f"channel number {resolution}. "
+          f"channel number {num_features}. "
           f"train input size {input_size}")
     model.summary()
 
@@ -108,20 +110,15 @@ def main(arguments):
         print('Load weights {}.'.format(arguments.weights_path))
 
     # start training
-    if arguments.gpu_num >= 2:
-        model.fit(train_dataset,
-                  epochs=arguments.total_epoch,
-                  initial_epoch=arguments.init_epoch,
-                  workers=arguments.gpu_num,
-                  use_multiprocessing=True,
-                  callbacks=callbacks)
-    else:
-        model.fit(train_dataset,
-                  epochs=arguments.total_epoch,
-                  initial_epoch=arguments.init_epoch,
-                  callbacks=callbacks)
+    model.fit(train_dataset,
+              epochs=arguments.total_epoch,
+              steps_per_epoch=count_tfrecord_examples(train_dataset) // arguments.batch_size,
+              initial_epoch=arguments.init_epoch,
+              workers=arguments.gpu_num,
+              use_multiprocessing=True,
+              callbacks=callbacks)
 
-    model.save(os.path.join(log_dir, 'trained_final.h5'))
+    save_model(model, log_dir, 'trained_final')
     return
 
 

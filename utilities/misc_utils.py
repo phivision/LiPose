@@ -18,6 +18,19 @@ Fanghao Yang 10/28/2020
 """
 import cv2
 import os
+import numpy as np
+
+
+def count_tfrecord_examples(dataset) -> int:
+    """Count the total number of examples in TFRecord dataset
+
+    Args:
+        dataset: TFRecord dataset
+
+    Returns:
+        number of examples
+    """
+    return int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
 
 
 def optimize_tf_gpu(tensor_flow, backend):

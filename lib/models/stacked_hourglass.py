@@ -16,18 +16,30 @@
 Slim hour glass model for mobile applications
 Fanghao Yang 11/25/2020
 """
+import tensorflow as tf
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
 from lib.models.blocks import FrontModule, Hourglass, create_front_module, hourglass_module, bottleneck_mobile
+from tensorflow.python.eager import backprop
 
 
 class StackedHourglass(Model):
-    # TODO: OOP code has issues input shape
-    # error: incompatible with the layer: its rank is undefined, but the layer requires a defined rank.
+    """Subclassing model for fully customized network"""
+
+    def __init__(self, num_stacks: int, num_classes: int, num_features: int, mobile=True):
+        super(StackedHourglass, self).__init__()
+        self._front_module = FrontModule(num_features, mobile=mobile)
+        self._hourglasses = [Hourglass(num_classes, num_features, i, mobile=mobile) for i in range(num_stacks)]
+        self.num_stacks = num_stacks
+        self.num_classes = num_classes
+        self.num_features = num_features
+        self.mobile = mobile
+
     def get_config(self):
-        return {'num_classes': self.num_classes,
-                'num_stacks': self.num_stacks,
-                'num_features': self.num_features}
+        return {'num_stacks': self.num_stacks,
+                'num_classes': self.num_classes,
+                'num_features': self.num_features,
+                'mobile': self.mobile}
 
     def call(self, inputs, training=None, mask=None):
         # front module, input to 1/4 resolution
@@ -42,11 +54,17 @@ class StackedHourglass(Model):
             outputs.append(head_to_loss)
         return outputs
 
-    def __init__(self, num_stacks: int, num_classes: int, num_features: int, mobile=True):
-        super(StackedHourglass, self).__init__()
-        self._front_module = FrontModule(num_features, mobile=mobile)
-        self._hourglasses = [Hourglass(num_classes, num_features, i, mobile=mobile) for i in range(num_stacks)]
-        self.num_stacks = num_stacks
+    def train_step(self, data):
+        x, y = data
+        with backprop.GradientTape() as tape:
+            y_pred = self(x, training=True)
+            loss = self.compiled_loss(
+                y, y_pred, None, regularization_losses=self.losses)
+            trainable_variables = self.trainable_variables
+            gradients = tape.gradient(loss, trainable_variables)
+            self.optimizer.apply_gradients(zip(gradients, trainable_variables))
+        self.compiled_metrics.update_state(y, y_pred, None)
+        return {m.name: m.result() for m in self.metrics}
 
     # @classmethod
     # def from_shape_type(cls, num_classes, num_stacks, num_features, input_shape=(256, 256), input_type='rgb'):
