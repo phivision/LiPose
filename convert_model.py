@@ -22,13 +22,17 @@ from utilities.model_utils import convert_keras_to_coreml
 
 
 @click.command()
-@click.option('--input_model', help="Trained model to be converted")
-@click.option('--output_file', default='model/test.mlmodel', help="File path to the output model")
+@click.option('--input_model', type=str, help="Trained model to be converted")
+@click.option('--output_file', type=str, default='model/test.mlmodel', help="File path to the output model")
 def convert_model(input_model, output_file):
     # Remember the dim of input is 4, which includes the index of input elements
     # TODO: not compatible with other types of model, now only works for model with rgb 256x256 input
     input_shape = (1, 256, 256, 3)
-    convert_keras_to_coreml(input_model, input_shape, output_file)
+    if output_file.endswith('.mlmodel'):
+        # check if the output format is supported
+        convert_keras_to_coreml(input_model, input_shape, output_file)
+    else:
+        raise TypeError(f"Do not support to export model {input_model} as {output_file}")
 
 
 if __name__ == '__main__':
