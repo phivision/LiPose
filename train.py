@@ -89,8 +89,11 @@ def main(arguments):
             model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
                                                      tiny=arguments.tiny,
                                                      image_type=image_type)
+
             # compile model
             model.compile(optimizer=optimizer, loss=mean_squared_error)
+            # this customized summary code needs to be the same scope of the model instantiation
+            model.summary(line_length=120)
     else:
         # get normal train model, doesn't specify input size
         # model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
@@ -99,11 +102,11 @@ def main(arguments):
                                                  image_type=image_type)
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
+        model.summary(line_length=120)
 
     print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
           f"channel number {model.num_features}. "
           f"train input size {input_size}")
-    model.summary(line_length=120)
 
     if arguments.weights_path:
         model.load_weights(arguments.weights_path, by_name=True)  # , skip_mismatch=True)
