@@ -21,6 +21,7 @@ By Fanghao Yang, 10/15/2020
 import tensorflow as tf
 from pathlib import Path
 from functools import partial
+from utilities.misc_utils import parse_image_channel
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -86,12 +87,11 @@ def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
     example_message = _parse_tfr_element(element)
     if image_type == 'rgb':
         image = tf.io.parse_tensor(example_message['rgb'], out_type=tf.uint8)
-        num_input_ch = 3
     elif image_type == 'depth':
         image = tf.io.parse_tensor(example_message['depth'], out_type=tf.float32)
-        num_input_ch = 1
     else:
         raise TypeError(f"Do not support image type {image_type}")
+    num_input_ch = parse_image_channel(image_type)
     heatmap = tf.io.parse_tensor(example_message['heat_map'], out_type=tf.float32)
     # the TFRecord dataset generator cannot explicitly generate datatype and cast data
     # we have to explicitly do it to match the input shape and datatype

@@ -33,6 +33,25 @@ def count_tfrecord_examples(dataset) -> int:
     return int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
 
 
+def parse_image_channel(image_type: str) -> int:
+    """Based input image type, derive number of input channels
+
+    Args:
+        image_type: type of image
+
+    Returns:
+        number of input channels
+    """
+    # TODO: use dict for parsing image type
+    if image_type == 'rgb':
+        num_input_ch = 3
+    elif image_type == 'depth':
+        num_input_ch = 1
+    else:
+        raise TypeError(f"Do not support image type {image_type}")
+    return num_input_ch
+
+
 def optimize_tf_gpu(tensor_flow, backend):
     if tensor_flow.__version__.startswith('2'):
         gpus = tensor_flow.config.experimental.list_physical_devices('GPU')
