@@ -113,12 +113,10 @@ def main(arguments):
         print('Load weights {}.'.format(arguments.weights_path))
 
     # start training
+    # WARNING: if set the step for each epoch, the training loop will stop at epoch 2, unknown bug
     model.fit(train_dataset,
               epochs=arguments.total_epoch,
-              steps_per_epoch=count_tfrecord_examples(train_dataset),
               initial_epoch=arguments.init_epoch,
-              workers=arguments.gpu_num,
-              use_multiprocessing=True,
               callbacks=callbacks)
 
     save_model(model, log_dir, 'trained_final')
