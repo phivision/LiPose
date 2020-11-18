@@ -245,7 +245,7 @@ def hourglass_predict_keras(model, image_data):
 def hourglass_predict_coreml(mlmodel, image_data):
     input_data = np.expand_dims(image_data.numpy(), axis=0)
     prediction_dict = mlmodel.predict({"inputs": input_data})
-    heatmap = prediction_dict["identity_1"][0]
+    heatmap = prediction_dict["Identity_1"][0]
     return heatmap
 
 
@@ -367,7 +367,7 @@ def eval_pck(model,
         if model_format == 'TFLITE':
             heatmap = hourglass_predict_tflite(model, image_data)
         # normal keras h5 model
-        elif model_format == 'H5' or 'PB':
+        elif model_format == 'H5' or model_format == 'PB':
             # the tf keras h5 format or keras subclassing model in protobuf format
             heatmap = hourglass_predict_keras(model, image_data)
         elif model_format == 'COREML':
