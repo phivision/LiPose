@@ -54,6 +54,9 @@ def load_eval_model(model_path):
         model = load_model(model_path)
         # model is saved as tensorflow protobuf serialized model
         model_format = 'PB'
+    elif model_path.suffix == '.mlmodel':
+        model = ct.models.MLModel(str(model_path))
+        model_format = 'COREML'
     else:
         raise ValueError('invalid model file')
 
@@ -93,7 +96,8 @@ def convert_keras_to_coreml(input_path, input_shape, output_path):
 
     """
     tfk_model, _ = load_eval_model(input_path)
-    input_type = ct.ImageType(shape=input_shape)
+    # not using image as input
+    input_type = ct.TensorType(shape=input_shape)
     ct_model = ct.convert(tfk_model, inputs=[input_type])
     ct_model.save(output_path)
 

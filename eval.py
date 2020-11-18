@@ -233,11 +233,19 @@ def save_joints_detection(pred_joints, metainfo, class_names, skeleton_lines):
 
 def hourglass_predict_keras(model, image_data):
     # cast the raw image datatype (uint8 or float) to float32
-    prediction = model.predict(tf.expand_dims(tf.cast(image_data, dtype=tf.float32), axis=0))
+    input_data = tf.expand_dims(tf.cast(image_data, dtype=tf.float32), axis=0)
+    prediction = model.predict(input_data)
     # check to handle multi-output model
     if isinstance(prediction, list):
         prediction = prediction[-1]
     heatmap = prediction[0]
+    return heatmap
+
+
+def hourglass_predict_coreml(mlmodel, image_data):
+    input_data = np.expand_dims(image_data.numpy(), axis=0)
+    prediction_dict = mlmodel.predict({"inputs": input_data})
+    heatmap = prediction_dict["identity_1"][0]
     return heatmap
 
 
@@ -362,6 +370,8 @@ def eval_pck(model,
         elif model_format == 'H5' or 'PB':
             # the tf keras h5 format or keras subclassing model in protobuf format
             heatmap = hourglass_predict_keras(model, image_data)
+        elif model_format == 'COREML':
+            heatmap = hourglass_predict_coreml(model, image_data)
         else:
             raise ValueError('invalid model format')
 
