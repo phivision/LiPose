@@ -16,7 +16,7 @@ pip install coremltools
 conda create --name lipose python=3.7
 conda activate lipose
 conda install opencv
-conda install imageio
+conda install imageio, click
 pip install tensorflow
 pip install coremltools
 pip install matplotlib

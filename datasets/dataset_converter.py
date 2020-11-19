@@ -181,7 +181,7 @@ def _generate_2d_heat_map(height, width, joints_2d, max_length):
     return hm
 
 
-def _generate_new_depth(new_height, new_width, raw_depth):
+def generate_new_depth(new_height, new_width, raw_depth):
     """Generate a resized new depth image from raw data
     This code ONLY works for converting 240x320 data to 256x256 data!!!
     Args:
@@ -192,23 +192,7 @@ def _generate_new_depth(new_height, new_width, raw_depth):
     Returns:
         new depth map, new and raw bbox of human in original depth map
     """
-    # generate bbox from depth map
-    # human_depth = np.where(raw_depth < DEPTH_THRESHOLD)
-    # bounding box = (start width, start height, end width, end height)
-    # bbox = [np.min(human_depth[1]), np.min(human_depth[0]), np.max(human_depth[1]), np.max(human_depth[0])]
-    # human shape (human width, human height)
-    # human_shape = (bbox[2]-bbox[0], bbox[3]-bbox[1])
     new_map = np.full((new_height, new_width), 1000000, dtype=np.float32)
-    # new_bbox = [(new_width - human_shape[0]) // 2,
-    #             (new_height - human_shape[1]) // 2,
-    #             (new_height + human_shape[0]) // 2,
-    #             (new_width + human_shape[0]) // 2]
-    # new_bbox[0] = 0 if new_bbox[0] < 0 else new_bbox[0]
-    # new_bbox[1] = 0 if new_bbox[1] < 0 else new_bbox[1]
-    # new_map[new_bbox[1]:(new_bbox[1] + human_shape[1]), new_bbox[0]:(new_bbox[0] + human_shape[0])] = \
-    #     raw_depth[bbox[1]:bbox[3], bbox[2]:bbox[0]]
-    # shift = [(new_bbox[0] + new_bbox[2]) / 2 - (bbox[0] + bbox[2]) / 2,
-    #          (new_bbox[1] + new_bbox[1]) / 2 - (bbox[0] + bbox[2]) / 2]
     raw_height = raw_depth.shape[0]
     raw_width = raw_depth.shape[1]
     shift = [(new_width - raw_width)//2, (new_height - raw_height)//2]
@@ -280,7 +264,7 @@ def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000)
             for i in range(0, num_frames, FRAME_STEP):
                 raw_rgb_image = video.get_data(i)
                 raw_depth_map = depth_data['depth_' + str(i + 1)]
-                depth_map, shift = _generate_new_depth(IMG_HEIGHT, IMG_WIDTH, raw_depth_map)
+                depth_map, shift = generate_new_depth(IMG_HEIGHT, IMG_WIDTH, raw_depth_map)
                 rgb_image = _generate_new_rgb(IMG_HEIGHT, IMG_WIDTH, shift, raw_rgb_image)
                 if num_frames == 1:
                     raw_joints_2d = info_data['joints2D']
