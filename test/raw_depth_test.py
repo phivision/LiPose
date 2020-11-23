@@ -24,9 +24,9 @@ import numpy as np
 import scipy.io as sio
 from scipy.ndimage import zoom
 from utilities.model_utils import load_eval_model
-from eval import hourglass_predict_coreml
+from eval import hourglass_predict_coreml, hourglass_predict_keras
 from lib.postprocessing import post_process_heatmap
-from lib.visualization import draw_joints_on_depth
+from lib.visualization import draw_joints, draw_stacked_heatmaps
 from utilities.misc_utils import get_classes
 from datasets.dataset_converter import generate_new_depth
 DEPTH_HEIGHT = 256
@@ -49,6 +49,7 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             # padding the input to get standard size
             shift = (DEPTH_HEIGHT - resized_depth.shape[0]) // 2
             std_input = np.pad(resized_depth[:-1, :], ((shift, shift+1), (0, 0)), constant_values=np.max(resized_depth))
+            std_input += 4.0
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of padded depth map {std_input.shape}")
         elif input_file.endswith('.mat'):
@@ -60,8 +61,14 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             raise TypeError("Do not support input file format!")
 
         # test raw data with model
-        model, _ = load_eval_model(model_path)
-        heatmaps = hourglass_predict_coreml(model, std_input)
+        model, model_format = load_eval_model(model_path)
+        if model_format == 'H5' or model_format == 'PB':
+            # the tf keras h5 format or keras subclassing model in protobuf format
+            heatmaps = hourglass_predict_keras(model, std_input)
+        elif model_format == 'COREML':
+            heatmaps = hourglass_predict_coreml(model, std_input)
+        else:
+            raise TypeError("Do not support this model format!")
         # get predict joints from heatmap
         pred_joints = post_process_heatmap(heatmaps, 0.3)
         print(pred_joints)
@@ -69,8 +76,11 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
         work_dir = os.getcwd()
         project_dir = os.path.dirname(work_dir)
         joint_names = get_classes(os.path.join(project_dir, joint_list))
-        heatmap_width = DEPTH_WIDTH/heatmaps.shape[1]
-        draw_joints_on_depth(pred_joints, joint_names, std_input, heatmap_width)
+        heatmap_w_ratio = DEPTH_WIDTH/heatmaps.shape[1]
+        draw_joints(pred_joints, joint_names, std_input, heatmap_w_ratio)
+        # create a list of heatmaps
+        heatmap_list = [heatmaps[:, :, i] for i in range(heatmaps.shape[-1])]
+        draw_stacked_heatmaps(heatmap_list, std_input, heatmap_w_ratio)
 
     pylab.show()
 

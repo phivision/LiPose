@@ -20,16 +20,18 @@ By Fanghao Yang, 11/20/2020
 import operator
 import matplotlib.pyplot as plt
 import pylab
+import numpy as np
+from scipy.ndimage import zoom
 
 
-def draw_joints_on_depth(joints: list, joint_names: list, depth, ratio: float):
-    """Draw joints on depth map
+def draw_joints(joints: list, joint_names: list, img, ratio: float):
+    """Draw joints on image
 
     Args:
         joints: a list of 2d joint location
         joint_names: a list of joint name
-        depth: raw depth image
-        ratio: the ratio between the heatmap location with input depth image
+        img: raw image
+        ratio: the ratio between the heatmap location with raw image
 
     Returns:
 
@@ -37,13 +39,34 @@ def draw_joints_on_depth(joints: list, joint_names: list, depth, ratio: float):
     pylab.figure()
     for idx, joint in enumerate(joints):
         x, y, confidence = joint
-        if confidence > 0.0:
+        if confidence > 0.5:
             joint_name = joint_names[idx]
             real_x = x * ratio
             real_y = y * ratio
             pylab.scatter(real_x, real_y, marker='o')
             pylab.annotate(joint_name, xy=(real_x, real_y))
-    pylab.imshow(depth)
+    pylab.imshow(img)
+
+
+def draw_stacked_heatmaps(heatmaps: list, img, ratio):
+    """Draw stacked heatmaps on image
+
+    Args:
+        heatmaps: a list of heatmaps
+        img: raw image
+        ratio: the ratio between the heatmap with raw image
+
+    Returns:
+
+    """
+    pylab.figure()
+    pylab.imshow(img)
+    stacked_size = (int(heatmaps[0].shape[0] * ratio), int(heatmaps[0].shape[1] * ratio))
+    stacked_heatmap = np.zeros(stacked_size)
+    for heatmap in heatmaps:
+        resized_heatmap = zoom(heatmap, ratio, order=3)
+        stacked_heatmap += resized_heatmap
+    pylab.imshow(stacked_heatmap, alpha=0.5)
 
 
 def adjust_axes(r, t, fig, axes):
