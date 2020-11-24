@@ -97,8 +97,9 @@ def convert_keras_to_coreml(input_path, input_shape, output_path):
     """
     tfk_model, _ = load_eval_model(input_path)
     # not using image as input
-    input_type = ct.TensorType(shape=input_shape)
-    ct_model = ct.convert(tfk_model, inputs=[input_type])
+    # TODO: the converted model may not has consistent input placeholder, need a fix
+    input_type = ct.TensorType(shape=input_shape, name='input')
+    ct_model = ct.convert(tfk_model, source='tensorflow', inputs=[input_type])
     ct_model.save(output_path)
 
 

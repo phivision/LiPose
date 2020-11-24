@@ -49,7 +49,7 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             # padding the input to get standard size
             shift = (DEPTH_HEIGHT - resized_depth.shape[0]) // 2
             std_input = np.pad(resized_depth[:-1, :], ((shift, shift+1), (0, 0)), constant_values=np.max(resized_depth))
-            std_input += 4.0
+            std_input += 3.0
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of padded depth map {std_input.shape}")
         elif input_file.endswith('.mat'):
