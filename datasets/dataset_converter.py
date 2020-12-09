@@ -229,12 +229,18 @@ def _generate_new_joints_2d(raw_joints_2d, shift):
     return new_joints_2d
 
 
-def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000):
+def convert_surreal_data(input_path: Path,
+                         output_path: Path,
+                         image_size: int = IMG_WIDTH,
+                         heatmap_size: int = HEAT_MAP_WIDTH,
+                         max_count=1000000):
     """Convert SURREAL dataset to TFRecord serialized data
 
     Args:
         input_path: input path of dataset
         output_path: output path of TFRecord file
+        image_size: size of input image
+        heatmap_size: size of output heatmap
         max_count: maximum count of converted examples
 
     Returns:
@@ -264,8 +270,8 @@ def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000)
             for i in range(0, num_frames, FRAME_STEP):
                 raw_rgb_image = video.get_data(i)
                 raw_depth_map = depth_data['depth_' + str(i + 1)]
-                depth_map, shift = generate_new_depth(IMG_HEIGHT, IMG_WIDTH, raw_depth_map)
-                rgb_image = _generate_new_rgb(IMG_HEIGHT, IMG_WIDTH, shift, raw_rgb_image)
+                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map)
+                rgb_image = _generate_new_rgb(image_size, image_size, shift, raw_rgb_image)
                 if num_frames == 1:
                     raw_joints_2d = info_data['joints2D']
                     joints_3d = info_data['joints3D']
@@ -275,9 +281,9 @@ def convert_surreal_data(input_path: Path, output_path: Path, max_count=1000000)
                 cam_loc = info_data['camLoc']
                 joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
                 # generate heat map array
-                pad_vec, c_box = _generate_2d_crop_box(IMG_HEIGHT, IMG_WIDTH, depth_map)
-                resized_joints_2d = relative_joints(c_box, pad_vec, joints_2d, to_size=HEAT_MAP_HEIGHT)
-                heat_map = _generate_2d_heat_map(HEAT_MAP_HEIGHT, HEAT_MAP_WIDTH, resized_joints_2d, HEAT_MAP_WIDTH)
+                pad_vec, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
+                resized_joints_2d = relative_joints(c_box, pad_vec, joints_2d, to_size=heatmap_size)
+                heat_map = _generate_2d_heat_map(heatmap_size, heatmap_size, resized_joints_2d, heatmap_size)
                 feature = {'rgb': _bytes_feature(serialize_array(rgb_image)),
                            'depth': _bytes_feature(serialize_array(depth_map)),
                            'heat_map': _bytes_feature(serialize_array(heat_map)),
