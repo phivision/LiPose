@@ -31,14 +31,16 @@ import glob
 FRAME_STEP = 101
 # to distinguish human body from background, this threshold value is used
 DEPTH_THRESHOLD = 1000
-# new input image height and width
+# default new input image height and width
 IMG_HEIGHT = 256
 IMG_WIDTH = 256
-# heat map size
+# default heat map size
 HEAT_MAP_HEIGHT = 64
 HEAT_MAP_WIDTH = 64
 # background threshold, value to differentiate the human object from backgrnd
 BG_THRESHOLD = 100
+# targeting max depth for iOS lidar sensor
+TARGET_MAX_DEPTH = 5.0
 
 
 # Utility functions to serialize numpy array as byte string
@@ -181,13 +183,19 @@ def _generate_2d_heat_map(height, width, joints_2d, max_length):
     return hm
 
 
-def generate_new_depth(new_height, new_width, raw_depth):
+def generate_new_depth(new_height,
+                       new_width,
+                       raw_depth,
+                       grayscale=False,
+                       noise=False):
     """Generate a resized new depth image from raw data
     This code ONLY tested for converting 240x320 data to 256x256 or 192x192 data!!!
     Args:
         new_height: height of new depth map
         new_width: width of new depth map
         raw_depth: raw depth map
+        grayscale: normalize and convert the depth image as grayscale map
+        noise: include random noise in the background
 
     Returns:
         new depth map, new and raw bbox of human in original depth map
@@ -204,9 +212,25 @@ def generate_new_depth(new_height, new_width, raw_depth):
         new_map = raw_depth[-shift[1]:-shift[1]+new_height, -shift[0]:-shift[0]+new_width]
     else:
         raise(ValueError("This new depth shape has not been tested!"))
-    background_depth = max(new_map[new_map < BG_THRESHOLD]) * 2.0
-    new_map[new_map > BG_THRESHOLD] = background_depth
-    return new_map, shift
+    # this conversion will put the human depth data into a 0-5.0 linear space and human will put in the middle
+    human_center_depth = np.mean(new_map[new_map < BG_THRESHOLD])
+    if noise:
+        # if adding noise, the center of human will relocate to the center of targeting space
+        noise_background = np.random.rand(*new_map.shape)
+        noise_background *= TARGET_MAX_DEPTH
+        depth_shift = TARGET_MAX_DEPTH / 2.0 - human_center_depth
+        noise_background[new_map < BG_THRESHOLD] = new_map[new_map < BG_THRESHOLD] + depth_shift
+        new_map = noise_background.astype(np.float32)
+    else:
+        background_depth = human_center_depth * 2.0
+        new_map[new_map > BG_THRESHOLD] = background_depth
+    if grayscale:
+        new_map /= np.max(new_map)
+        new_map *= 255.0
+        grayscale_map = new_map.astype(np.uint8)
+        return grayscale_map, shift
+    else:
+        return new_map, shift
 
 
 def _generate_new_rgb(new_height, new_width, shift, raw_rgb):
@@ -283,7 +307,7 @@ def convert_surreal_data(input_path: Path,
             for i in range(0, num_frames, FRAME_STEP):
                 raw_rgb_image = video.get_data(i)
                 raw_depth_map = depth_data['depth_' + str(i + 1)]
-                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map)
+                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=True)
                 rgb_image = _generate_new_rgb(image_size, image_size, shift, raw_rgb_image)
                 if num_frames == 1:
                     raw_joints_2d = info_data['joints2D']

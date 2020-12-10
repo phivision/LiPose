@@ -20,6 +20,7 @@ By Fanghao Yang, 10/15/2020
 
 import click
 from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
+from datasets.dataset_converter import TARGET_MAX_DEPTH
 from pathlib import Path
 import pylab
 import numpy as np
@@ -37,8 +38,7 @@ def load_surreal_test(input_file: str):
         print(f"rgb image shape {example['rgb'].shape}")
         pylab.figure()
         depth_map = example['depth'].numpy()
-        depth_map[depth_map > 100] = 0.0
-        pylab.imshow(depth_map)
+        pylab.imshow(depth_map / TARGET_MAX_DEPTH)
         # list heat maps
         heat_maps = [example['heat_map'][:, :, i] for i in range(example['heat_map'].shape[-1])]
         # for heat_map in heat_maps:
