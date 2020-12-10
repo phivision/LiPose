@@ -27,8 +27,18 @@ from pathlib import Path
 @click.option('--input_dir', help='input data to be converted')
 @click.option('--output_file', help='output TFRecord data')
 @click.option('--frame_count', default=100000, help='number of frames to be converted')
-def convert_surreal(input_dir: str, output_file: str, frame_count: int):
-    convert_surreal_data(Path(input_dir), Path(output_file), frame_count)
+@click.option('--image_size', default=256, help="size of input images after conversion")
+@click.option('--heatmap_size', default=64, help="size of output heatmap size")
+def convert_surreal(input_dir: str,
+                    output_file: str,
+                    frame_count: int,
+                    image_size: int,
+                    heatmap_size: int):
+    convert_surreal_data(Path(input_dir),
+                         Path(output_file),
+                         image_size=image_size,
+                         heatmap_size=heatmap_size,
+                         max_count=frame_count)
 
 
 if __name__ == '__main__':

@@ -183,7 +183,7 @@ def _generate_2d_heat_map(height, width, joints_2d, max_length):
 
 def generate_new_depth(new_height, new_width, raw_depth):
     """Generate a resized new depth image from raw data
-    This code ONLY works for converting 240x320 data to 256x256 data!!!
+    This code ONLY tested for converting 240x320 data to 256x256 or 192x192 data!!!
     Args:
         new_height: height of new depth map
         new_width: width of new depth map
@@ -192,11 +192,18 @@ def generate_new_depth(new_height, new_width, raw_depth):
     Returns:
         new depth map, new and raw bbox of human in original depth map
     """
-    new_map = np.full((new_height, new_width), 1000000, dtype=np.float32)
+
     raw_height = raw_depth.shape[0]
     raw_width = raw_depth.shape[1]
     shift = [(new_width - raw_width)//2, (new_height - raw_height)//2]
-    new_map[shift[1]:shift[1]+raw_height, :] = raw_depth[:, -shift[0]:-shift[0]+new_width]
+    # Numpy by default is row-major, the index of width and height is swapped here
+    if shift[0] > 0 > shift[1]:
+        new_map = np.full((new_height, new_width), 1000000, dtype=np.float32)
+        new_map[shift[1]:shift[1]+raw_height, :] = raw_depth[:, -shift[0]:-shift[0]+new_width]
+    elif shift[0] < 0 and shift[1] < 0:
+        new_map = raw_depth[-shift[1]:-shift[1]+new_height, -shift[0]:-shift[0]+new_width]
+    else:
+        raise(ValueError("This new depth shape has not been tested!"))
     background_depth = max(new_map[new_map < BG_THRESHOLD]) * 2.0
     new_map[new_map > BG_THRESHOLD] = background_depth
     return new_map, shift
@@ -214,9 +221,15 @@ def _generate_new_rgb(new_height, new_width, shift, raw_rgb):
     Returns:
         new rgb
     """
-    new_rgb = np.zeros((new_height, new_width, 3), dtype=np.uint8)
+
     raw_height = raw_rgb.shape[0]
-    new_rgb[shift[1]:shift[1]+raw_height, :] = raw_rgb[:, -shift[0]:-shift[0]+new_width]
+    if shift[0] > 0 > shift[1]:
+        new_rgb = np.zeros((new_height, new_width, 3), dtype=np.uint8)
+        new_rgb[shift[1]:shift[1]+raw_height, :] = raw_rgb[:, -shift[0]:-shift[0]+new_width]
+    elif shift[0] < 0 and shift[1] < 0:
+        new_rgb = raw_rgb[-shift[1]:-shift[1]+new_height, -shift[0]:-shift[0]+new_width]
+    else:
+        raise(ValueError("This new depth shape has not been tested!"))
     return new_rgb
 
 
