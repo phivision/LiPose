@@ -57,6 +57,7 @@ def main(arguments):
     # get train dataset
     train_dataset = load_surreal_data_training(arguments.dataset_path,
                                                arguments.batch_size,
+                                               num_features=arguments.num_features,
                                                shuffle=True,
                                                image_type=image_type)
     # check if the dataset matches the arguments
@@ -96,7 +97,6 @@ def main(arguments):
             model.summary(line_length=120)
     else:
         # get normal train model, doesn't specify input size
-        # model = get_mobile_hg_model(num_classes, arguments.num_stacks, resolution)
         model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
                                                  tiny=arguments.tiny,
                                                  image_type=image_type)
@@ -128,6 +128,8 @@ if __name__ == "__main__":
     # Model definition options
     parser.add_argument("--num_stacks", type=int, required=False, default=2,
                         help='number of hourglass stacks, default=%(default)s')
+    parser.add_argument('--num_features', type=int, required=False, default=256,
+                        help="number of input image size")
     parser.add_argument("--tiny", default=False, action="store_true",
                         help="tiny network for speed, feature channel=128")
     parser.add_argument('--weights_path', type=str, required=False, default=None,

@@ -18,7 +18,7 @@ Fanghao Yang 11/25/2020
 """
 from tensorflow.keras.layers import Input
 from tensorflow.keras.models import Model
-from lib.models.blocks import FrontModule, Hourglass, create_front_module, hourglass_module, bottleneck_mobile
+from lib.models.blocks import FrontModule, Hourglass
 from tensorflow.python.eager import backprop
 
 
@@ -32,7 +32,7 @@ class StackedHourglass(Model):
                  num_img_ch: int = 3,
                  mobile=True):
         super(StackedHourglass, self).__init__(name=f"Stacked_{num_stacks}_Hourglass")
-        self._front_module = FrontModule(num_features, mobile=mobile)
+        self._front_module = FrontModule(num_features, num_img_ch, mobile=mobile)
         self._hourglasses = [Hourglass(num_classes, num_features, i, mobile=mobile) for i in range(num_stacks)]
         self.num_stacks = num_stacks
         self.num_classes = num_classes
@@ -100,45 +100,5 @@ class StackedHourglass(Model):
         if tiny:
             num_features = 128
         else:
-            num_features = 256
+            num_features = 192
         return cls(num_stacks, num_classes, num_features, num_img_ch=num_image_ch, mobile=True)
-
-
-def get_mobile_hg_model(num_classes, num_stacks, num_features, input_size=None, input_type='rgb'):
-    """Functional API for mobile hourglass model
-
-    Args:
-        num_classes: number of classes of joints (24 by default)
-        num_stacks: number of stacks hourglasses in the model (more stacks, more accurate, slower)
-        num_features: number of features in input image (256 by default, 128 for tiny model)
-        input_size: the shape of input image, shall match the channel number, this argument could be redundant
-        input_type: define the type of input data, rgb image, depth map or other input type
-                    ['rgb', 'depth', 'rgb-depth', 'grayscale-depth']
-
-    Returns:
-        Keras Model of hourglass
-    """
-    # prepare input tensor
-    if input_type == 'rgb':
-        num_channels = 3
-    else:
-        num_channels = 1
-    if input_size:
-        input_tensor = Input(shape=(input_size[0], input_size[1], num_channels), name='image_input')
-    else:
-        input_tensor = Input(shape=(None, None, num_channels), name='image_input')
-
-    # front module, input to 1/4 resolution
-    front_features = create_front_module(input_tensor, num_features, bottleneck_mobile)
-
-    # form up hourglass stacks and get head of
-    # each module for intermediate supervision
-    head_next_stage = front_features
-    outputs = []
-    for i in range(num_stacks):
-        head_next_stage, head_to_loss = hourglass_module(head_next_stage,
-                                                         num_classes, num_features, bottleneck_mobile, i)
-        outputs.append(head_to_loss)
-
-    model = Model(inputs=input_tensor, outputs=outputs)
-    return model

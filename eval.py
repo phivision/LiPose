@@ -275,7 +275,7 @@ def eval_pck(model,
         crop_box = example['crop_box'].numpy()
         joints_2d = example['joints_2d'].numpy()
         padding = [[0, 0], [0, 0]]
-        gt_joints = relative_joints(crop_box, padding, joints_2d).T
+        gt_joints = relative_joints(crop_box, padding, joints_2d, to_size=heatmap_size[0]).T
 
         # calculate succeed & failed joints for prediction
         result_list = keypoint_accuracy(pred_joints, gt_joints, score_threshold, normalize)

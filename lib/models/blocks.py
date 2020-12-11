@@ -25,24 +25,25 @@ import tensorflow.keras.backend as k_backend
 class FrontModule(Layer):
     """OOP style definition (subclassing) of the front module"""
 
-    def __init__(self, num_features, block_name='front_module', mobile=True):
+    def __init__(self, num_features, num_channel, block_name='front_module', mobile=True):
         """
         Front Module which convert input to 1/4 resolution, using:
             1 7x7 conv + max_pooling
             3 residual block
         Args:
             num_features: input image features (number of pixels in x or y, e.g. 256)
+            num_channel: number of channel of input image
             block_name:
             mobile: if using mobile network model (separable conv)
         """
         super(FrontModule, self).__init__(name=block_name)
-        self._conv2d = Conv2D(64,
+        self._conv2d = Conv2D(num_features // 4,
                               kernel_size=(7, 7),
                               strides=(2, 2),
                               padding='same',
                               activation='relu',
                               name='front_conv_1x1_x1',
-                              input_shape=(num_features, num_features, 3))
+                              input_shape=(num_features, num_features, num_channel))
         self._batch_norm = BatchNormalization()
         self._max_pool_2d = MaxPool2D(pool_size=(2, 2), strides=(2, 2))
         self._bottleneck_blocks = [Bottleneck(num_features // 2, 'front_residual_x1', mobile=mobile),
@@ -225,212 +226,6 @@ class Bottom(Layer):
         for bottleneck in self._bottleneck_blocks:
             _x = bottleneck(_x)
         return self._add([_x, lf8_connect])
-
-
-# below is code using functional API
-def hourglass_module(bottom, num_classes, num_features, bottleneck, hg_id):
-    # create left features , f1, f2, f4, and f8
-    left_features = create_left_half_blocks(bottom, bottleneck, hg_id, num_features)
-
-    # create right features, connect with left features
-    rf1 = create_right_half_blocks(left_features, bottleneck, hg_id, num_features)
-
-    # add 1x1 conv with two heads, head_next_stage is sent to next stage
-    # head_parts is used for intermediate supervision
-    head_next_stage, head_parts = create_heads(bottom, rf1, num_classes, hg_id, num_features)
-
-    return head_next_stage, head_parts
-
-
-def bottleneck_block(bottom, num_out_features, block_name):
-    """
-    Default bottleneck module
-    Args:
-        bottom:
-        num_out_features:
-        block_name:
-
-    Returns:
-
-    """
-    # skip layer
-    if k_backend.int_shape(bottom)[-1] == num_out_features:
-        _skip = bottom
-    else:
-        _skip = Conv2D(num_out_features, kernel_size=(1, 1), activation='relu', padding='same',
-                       name=block_name + 'skip')(bottom)
-
-    # residual: 3 conv blocks,  [num_out_features/2  -> num_out_features/2 -> num_out_features]
-    _x = Conv2D(num_out_features // 2, kernel_size=(1, 1), activation='relu', padding='same',
-                name=block_name + '_conv_1x1_x1')(bottom)
-    _x = BatchNormalization()(_x)
-    _x = Conv2D(num_out_features // 2, kernel_size=(3, 3), activation='relu', padding='same',
-                name=block_name + '_conv_3x3_x2')(_x)
-    _x = BatchNormalization()(_x)
-    _x = Conv2D(num_out_features, kernel_size=(1, 1), activation='relu', padding='same',
-                name=block_name + '_conv_1x1_x3')(_x)
-    _x = BatchNormalization()(_x)
-    _x = Add(name=block_name + '_residual')([_skip, _x])
-
-    return _x
-
-
-def bottleneck_mobile(bottom, num_out_features, block_name):
-    """
-    Using separable convolution layers for faster execution on mobile devices
-    Args:
-        bottom:
-        num_out_features:
-        block_name:
-
-    Returns:
-
-    """
-    # skip layer
-    if k_backend.int_shape(bottom)[-1] == num_out_features:
-        _skip = bottom
-    else:
-        _skip = SeparableConv2D(num_out_features, kernel_size=(1, 1), activation='relu', padding='same',
-                                name=block_name + 'skip')(bottom)
-
-    # residual: 3 conv blocks,  [num_out_features/2  -> num_out_features/2 -> num_out_features]
-    _x = SeparableConv2D(num_out_features // 2, kernel_size=(1, 1), activation='relu', padding='same',
-                         name=block_name + '_conv_1x1_x1')(bottom)
-    _x = BatchNormalization()(_x)
-    _x = SeparableConv2D(num_out_features // 2, kernel_size=(3, 3), activation='relu', padding='same',
-                         name=block_name + '_conv_3x3_x2')(_x)
-    _x = BatchNormalization()(_x)
-    _x = SeparableConv2D(num_out_features, kernel_size=(1, 1), activation='relu', padding='same',
-                         name=block_name + '_conv_1x1_x3')(_x)
-    _x = BatchNormalization()(_x)
-    _x = Add(name=block_name + '_residual')([_skip, _x])
-
-    return _x
-
-
-def create_front_module(module_input, num_features, bottleneck):
-    """
-    Front Module which convert input to 1/4 resolution, using:
-        1 7x7 conv + max_pooling
-        3 residual block
-    Args:
-        module_input: 
-        num_features: input image features (number of pixels in x or y, e.g. 256)
-        bottleneck: 
-
-    Returns:
-
-    """
-    _x = Conv2D(64,
-                kernel_size=(7, 7),
-                strides=(2, 2),
-                padding='same',
-                activation='relu',
-                name='front_conv_1x1_x1')(module_input)
-    _x = BatchNormalization()(_x)
-
-    _x = bottleneck(_x, num_features // 2, 'front_residual_x1')
-    _x = MaxPool2D(pool_size=(2, 2), strides=(2, 2))(_x)
-
-    _x = bottleneck(_x, num_features // 2, 'front_residual_x2')
-    _x = bottleneck(_x, num_features, 'front_residual_x3')
-
-    return _x
-
-
-def create_left_half_blocks(bottom, bottleneck, hg_layer, num_features):
-    # create left half blocks for hourglass module
-    # f1, f2, f4 , f8 : 1, 1/2, 1/4 1/8 resolution
-
-    hg_name = 'hg' + str(hg_layer)
-
-    f1 = bottleneck(bottom, num_features, hg_name + '_l1')
-    _x = MaxPool2D(pool_size=(2, 2), strides=(2, 2))(f1)
-
-    f2 = bottleneck(_x, num_features, hg_name + '_l2')
-    _x = MaxPool2D(pool_size=(2, 2), strides=(2, 2))(f2)
-
-    f4 = bottleneck(_x, num_features, hg_name + '_l4')
-    _x = MaxPool2D(pool_size=(2, 2), strides=(2, 2))(f4)
-
-    f8 = bottleneck(_x, num_features, hg_name + '_l8')
-
-    return f1, f2, f4, f8
-
-
-def connect_left_to_right(left, right, bottleneck, name, num_features):
-    """
-
-    Args:
-        left: connect left feature to right feature
-        right:
-        bottleneck:
-        name: layer name
-        num_features:
-
-    Returns:
-    """
-    # left -> 1 bottleneck
-    # right -> up_sampling
-    # Add   -> left + right
-
-    _x_left = bottleneck(left, num_features, name + '_connect')
-    _x_right = UpSampling2D()(right)
-    add = Add()([_x_left, _x_right])
-    out = bottleneck(add, num_features, name + '_connect_conv')
-    return out
-
-
-def bottom_layer(lf8, bottleneck, hg_id, num_features):
-    # blocks in lowest resolution
-    # 3 bottleneck blocks + Add
-
-    lf8_connect = bottleneck(lf8, num_features, str(hg_id) + "_lf8")
-
-    _x = bottleneck(lf8, num_features, str(hg_id) + "_lf8_x1")
-    _x = bottleneck(_x, num_features, str(hg_id) + "_lf8_x2")
-    _x = bottleneck(_x, num_features, str(hg_id) + "_lf8_x3")
-
-    rf8 = Add()([_x, lf8_connect])
-
-    return rf8
-
-
-def create_right_half_blocks(left_features, bottleneck, hg_layer, num_features):
-    lf1, lf2, lf4, lf8 = left_features
-
-    rf8 = bottom_layer(lf8, bottleneck, hg_layer, num_features)
-
-    rf4 = connect_left_to_right(lf4, rf8, bottleneck, 'hg' + str(hg_layer) + '_rf4', num_features)
-
-    rf2 = connect_left_to_right(lf2, rf4, bottleneck, 'hg' + str(hg_layer) + '_rf2', num_features)
-
-    rf1 = connect_left_to_right(lf1, rf2, bottleneck, 'hg' + str(hg_layer) + '_rf1', num_features)
-
-    return rf1
-
-
-def create_heads(pre_layer_features, rf1, num_classes, hg_id, num_features):
-    # two head, one head to next stage, one head to intermediate features
-    head = Conv2D(num_features,
-                  kernel_size=(1, 1),
-                  activation='relu',
-                  padding='same',
-                  name=str(hg_id) + '_conv_1x1_x1')(rf1)
-    head = BatchNormalization()(head)
-
-    # for head as intermediate supervision, use 'linear' as activation.
-    head_parts = Conv2D(num_classes, kernel_size=(1, 1), activation='linear', padding='same',
-                        name=str(hg_id) + '_conv_1x1_parts')(head)
-
-    # use linear activation
-    head = Conv2D(num_features, kernel_size=(1, 1), activation='linear', padding='same',
-                  name=str(hg_id) + '_conv_1x1_x2')(head)
-    head_m = Conv2D(num_features, kernel_size=(1, 1), activation='linear', padding='same',
-                    name=str(hg_id) + '_conv_1x1_x3')(head_parts)
-
-    head_next_stage = Add()([head, head_m, pre_layer_features])
-    return head_next_stage, head_parts
 
 
 def euclidean_loss(x, y):

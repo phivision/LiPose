@@ -27,7 +27,7 @@ from tqdm import tqdm
 from pathlib import Path
 import glob
 
-# since the uncompressed data is too large, we use a step to sample each 10 frames
+# since the uncompressed data is too large, we use a step to sample each 100 frames
 FRAME_STEP = 101
 # to distinguish human body from background, this threshold value is used
 DEPTH_THRESHOLD = 1000
