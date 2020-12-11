@@ -29,8 +29,8 @@ from lib.postprocessing import post_process_heatmap
 from lib.visualization import draw_joints, draw_stacked_heatmaps
 from utilities.misc_utils import get_classes
 from datasets.dataset_converter import generate_new_depth
-DEPTH_HEIGHT = 256
-DEPTH_WIDTH = 256
+DEPTH_HEIGHT = 192
+DEPTH_WIDTH = 192
 PRED_THRESHOLD = 0.3
 
 
@@ -44,12 +44,9 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             depth_data = np.load(depth_file.name)
             resized_depth = zoom(depth_data, 0.5, order=1)
             print(f"Shape of resized depth map {resized_depth.shape}")
-            assert (resized_depth.shape[1] <= DEPTH_WIDTH)
-            assert (resized_depth.shape[0] <= DEPTH_HEIGHT)
             # padding the input to get standard size
-            shift = (DEPTH_HEIGHT - resized_depth.shape[0]) // 2
-            std_input = np.pad(resized_depth[:-1, :], ((shift, shift+1), (0, 0)), constant_values=np.max(resized_depth))
-            std_input += 3.0
+            w_shift = (DEPTH_WIDTH - resized_depth.shape[1]) // 2
+            std_input = resized_depth[:DEPTH_HEIGHT, -w_shift:(DEPTH_WIDTH-w_shift)]
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of padded depth map {std_input.shape}")
         elif input_file.endswith('.mat'):
