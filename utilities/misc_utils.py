@@ -20,6 +20,8 @@ import cv2
 import os
 import numpy as np
 
+GPU_MEM_LIMIT = 9600
+
 
 def count_tfrecord_examples(dataset) -> int:
     """Count the total number of mini batches in TFRecord dataset
@@ -60,7 +62,7 @@ def optimize_tf_gpu(tensor_flow, backend):
                 # Currently, memory growth needs to be the same across GPUs
                 for gpu in gpus:
                     # pay careful attention to the usage of GPU memory, over claim of memory will lead to problems
-                    config = [tensor_flow.config.experimental.VirtualDeviceConfiguration(memory_limit=9000)]
+                    config = [tensor_flow.config.experimental.VirtualDeviceConfiguration(memory_limit=GPU_MEM_LIMIT)]
                     tensor_flow.config.experimental.set_virtual_device_configuration(gpu, config)
             except RuntimeError as e:
                 # Memory growth must be set before GPUs have been initialized

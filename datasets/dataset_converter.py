@@ -307,7 +307,7 @@ def convert_surreal_data(input_path: Path,
             for i in range(0, num_frames, FRAME_STEP):
                 raw_rgb_image = video.get_data(i)
                 raw_depth_map = depth_data['depth_' + str(i + 1)]
-                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=True)
+                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=False)
                 rgb_image = _generate_new_rgb(image_size, image_size, shift, raw_rgb_image)
                 if num_frames == 1:
                     raw_joints_2d = info_data['joints2D']

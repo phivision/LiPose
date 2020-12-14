@@ -20,6 +20,7 @@ Fanghao Yang 10/29/2020
 
 import argparse
 import os
+from contextlib import nullcontext
 
 import tensorflow.keras.backend as keras_backend
 from tensorflow.keras.callbacks import TensorBoard, TerminateOnNaN
@@ -76,50 +77,46 @@ def main(arguments):
     # prepare optimizer
     optimizer = get_optimizer(arguments.optimizer, arguments.learning_rate, decay_type=None)
 
-    # support multi-gpu training
-    if arguments.gpu_num >= 2:
-        if arguments.gpu_num == 2:
-            gpus = [0, 2]
-        else:
-            gpus = range(arguments.gpu_num)
-        devices_list = ["/gpu:{}".format(n) for n in gpus]
-        strategy = tf.distribute.MirroredStrategy(devices=devices_list)
-        print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
-        with strategy.scope():
-            # get multi-gpu train model
-            model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
-                                                     tiny=arguments.tiny,
-                                                     image_type=image_type)
-
-            # compile model
-            model.compile(optimizer=optimizer, loss=mean_squared_error)
-            # this customized summary code needs to be the same scope of the model instantiation
-            model.summary(line_length=120)
-    else:
-        # get normal train model, doesn't specify input size
+    # define the model run procedure
+    def run_model():
+        # get multi-gpu train model
         model = StackedHourglass.from_shape_type(arguments.num_stacks, num_classes,
                                                  tiny=arguments.tiny,
                                                  image_type=image_type)
+
         # compile model
         model.compile(optimizer=optimizer, loss=mean_squared_error)
+        # this customized summary code needs to be the same scope of the model instantiation
         model.summary(line_length=120)
 
-    print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
-          f"channel number {model.num_features}. "
-          f"train input size {input_size}")
+        print(f"Create Mobile Stacked Hourglass model with stack number {arguments.num_stacks}, "
+              f"channel number {model.num_features}. "
+              f"train input size {input_size}")
 
-    if arguments.weights_path:
-        model.load_weights(arguments.weights_path, by_name=True)  # , skip_mismatch=True)
-        print('Load weights {}.'.format(arguments.weights_path))
+        if arguments.weights_path:
+            model.load_weights(arguments.weights_path, by_name=True)  # , skip_mismatch=True)
+            print('Load weights {}.'.format(arguments.weights_path))
+        # start training
+        # WARNING: if set the step for each epoch, the training loop will stop at epoch 2, unknown bug
+        model.fit(train_dataset,
+                  epochs=arguments.total_epoch,
+                  initial_epoch=arguments.init_epoch,
+                  callbacks=callbacks)
+        save_model(model, log_dir, 'trained_final')
 
-    # start training
-    # WARNING: if set the step for each epoch, the training loop will stop at epoch 2, unknown bug
-    model.fit(train_dataset,
-              epochs=arguments.total_epoch,
-              initial_epoch=arguments.init_epoch,
-              callbacks=callbacks)
+    # setup gpu run-time configuration
+    gpus = [int(gpu) for gpu in arguments.gpu.split(',')]
+    if len(gpus) >= 2:
+        # support multi-gpu training
+        devices_list = ["/gpu:{}".format(n) for n in gpus]
+        strategy = tf.distribute.MirroredStrategy(devices=devices_list)
+        print('Number of devices: {}'.format(strategy.num_replicas_in_sync))
+        model_scope = strategy.scope()
+    else:
+        model_scope = tf.device(f"/gpu:{gpus[0]}")
 
-    save_model(model, log_dir, 'trained_final')
+    with model_scope:
+        run_model()
     return
 
 
@@ -160,8 +157,8 @@ if __name__ == "__main__":
                         help="initial training epochs for fine tune training, default=%(default)s")
     parser.add_argument("--total_epoch", type=int, required=False, default=100,
                         help="total training epochs, default=%(default)s")
-    parser.add_argument('--gpu_num', type=int, required=False, default=1,
-                        help='Number of GPU to use, default=%(default)s')
+    parser.add_argument('--gpu', type=str, required=False, default='0',
+                        help='A list of GPU to use, split with "," default=%(default)s')
 
     args = parser.parse_args()
 
