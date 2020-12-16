@@ -20,6 +20,7 @@ By Fanghao Yang, 10/15/2020
 """
 
 import scipy.io as sio
+import imageio
 import tensorflow as tf
 import imageio
 import numpy as np
@@ -41,6 +42,8 @@ HEAT_MAP_WIDTH = 64
 BG_THRESHOLD = 100
 # targeting max depth for iOS lidar sensor
 TARGET_MAX_DEPTH = 5.0
+# K2HPD joint count
+K2HPD_JOINT_COUNT = 15
 
 
 # Utility functions to serialize numpy array as byte string
@@ -333,3 +336,56 @@ def convert_surreal_data(input_path: Path,
                 example_message = tf.train.Example(features=tf.train.Features(feature=feature))
                 writer.write(example_message.SerializeToString())
                 conversion_count += 1
+
+
+def convert_k2hpd_data(index_path: Path,
+                       image_path: Path,
+                       output_path: Path,
+                       image_size: int = IMG_WIDTH,
+                       heatmap_size: int = HEAT_MAP_WIDTH,
+                       max_count=1000000):
+    """Convert K2HPD dataset to TFRecord serialized data
+
+    Args:
+        index_path: an index of depth images and its annotation info
+        image_path: path to depth images
+        output_path: output path of TFRecord file
+        image_size: size of input image
+        heatmap_size: size of output heatmap
+        max_count: maximum count of converted examples
+
+    Returns:
+        None
+    """
+    if output_path.suffix != '.tfrecord':
+        print("The output format is not supported, please use TFRecord format!")
+        return
+    with tf.io.TFRecordWriter(str(output_path)) as writer:
+        # load annotation file
+        with index_path.open(mode='r') as index_file:
+            depth_image_list = index_file.readlines()
+        depth_image_list = depth_image_list[:max_count] if len(depth_image_list) > max_count else depth_image_list
+        for depth_info in depth_image_list:
+            info_list = depth_info.split(' ')
+            image_name = info_list[0]
+            if len(info_list) < K2HPD_JOINT_COUNT * 2 + 1:
+                print("Incomplete joint info! Skip this line!")
+                break
+            else:
+                raw_joints_2d = np.zeros((2, K2HPD_JOINT_COUNT))
+                for i in range(K2HPD_JOINT_COUNT):
+                    raw_joints_2d[0, i] = int(info_list[i*2+1])
+                    raw_joints_2d[1, i] = int(info_list[i*2+2])
+                raw_depth_map = imageio.imread(Path(image_path, image_name))
+                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=False)
+                joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
+                pad_vec, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
+                resized_joints_2d = relative_joints(c_box, pad_vec, joints_2d, to_size=heatmap_size)
+                heat_map = _generate_2d_heat_map(heatmap_size, heatmap_size, resized_joints_2d, heatmap_size)
+                feature = {'depth': _bytes_feature(serialize_array(depth_map)),
+                           'heat_map': _bytes_feature(serialize_array(heat_map)),
+                           'joints_2d': _bytes_feature(serialize_array(joints_2d)),
+                           'name': _bytes_feature(image_name.encode('utf-8')),
+                           'crop_box': _int64_feature_list(c_box)}
+                example_message = tf.train.Example(features=tf.train.Features(feature=feature))
+                writer.write(example_message.SerializeToString())
