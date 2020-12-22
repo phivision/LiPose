@@ -76,7 +76,7 @@ def _parse_tfr_element(element, image_type='rgb', support_3d=False):
     return example_message
 
 
-def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
+def _parse_tfr_training(element, image_type='rgb', num_features=256):
     """
     Parse TFRecord for model training, which only generate partial data
     Args:
@@ -87,7 +87,7 @@ def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
     Returns:
         rgb tensor, heat map tensor
     """
-    example_message = _parse_tfr_element(element)
+    example_message = _parse_tfr_element(element, image_type=image_type)
     if image_type == 'rgb':
         image = tf.io.parse_tensor(example_message[image_type], out_type=tf.uint8)
     elif image_type == 'depth':
@@ -130,13 +130,13 @@ def load_dataset(data_path: Path, image_type='rgb', support_3d=False):
     return dataset
 
 
-def load_surreal_data_training(data_path: Path,
-                               batch_size: int,
-                               shuffle: bool = True,
-                               num_features: int = 256,
-                               image_type: str = 'rgb'):
+def load_data_training(data_path: Path,
+                       batch_size: int,
+                       shuffle: bool = True,
+                       num_features: int = 256,
+                       image_type: str = 'rgb'):
     tfr_data = _load_tfr_data(data_path)
-    parse_func = partial(_parse_tfr_rgb_training, image_type=image_type, num_features=num_features)
+    parse_func = partial(_parse_tfr_training, image_type=image_type, num_features=num_features)
     dataset = tfr_data.map(parse_func, num_parallel_calls=AUTOTUNE)
     if shuffle:
         dataset = dataset.shuffle(2048)
