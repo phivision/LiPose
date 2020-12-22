@@ -14,33 +14,36 @@
 # from Phi Vision, Inc.
 
 """
-Convert SURREAL raw data from internet to serialized TFRecords format.
-[Dataset Link](https://www.di.ens.fr/willow/research/surreal/data/)
-By Fanghao Yang, 12/21/2020
+Convert K2HPD raw data from Sun Yat-sen Univ. to serialized TFRecords format.
+[Dataset Link](http://www.sysu-hcp.net/kinect2-human-pose-dataset-k2hpd/)
+By Fanghao Yang, 10/15/2020
 """
 
 import click
-from datasets.dataset_converter import convert_surreal_data
+from datasets.dataset_converter import convert_k2hpd_data
 from pathlib import Path
 
 
 @click.command()
-@click.option('--input_dir', help='input data to be converted')
+@click.option('--meta', help='metadata file linked to each image')
+@click.option('--image_path', help='path of png image files')
 @click.option('--output_file', help='output TFRecord data')
 @click.option('--frame_count', default=100000, help='number of frames to be converted')
 @click.option('--image_size', default=256, help="size of input images after conversion")
 @click.option('--heatmap_size', default=64, help="size of output heatmap size")
-def convert_surreal(input_dir: str,
-                    output_file: str,
-                    frame_count: int,
-                    image_size: int,
-                    heatmap_size: int):
-    convert_surreal_data(Path(input_dir),
-                         Path(output_file),
-                         image_size=image_size,
-                         heatmap_size=heatmap_size,
-                         max_count=frame_count)
+def convert_k2hpd(meta: str,
+                  image_path: str,
+                  output_file: str,
+                  frame_count: int,
+                  image_size: int,
+                  heatmap_size: int):
+    convert_k2hpd_data(Path(meta),
+                       Path(image_path),
+                       Path(output_file),
+                       image_size=image_size,
+                       heatmap_size=heatmap_size,
+                       max_count=frame_count)
 
 
 if __name__ == '__main__':
-    convert_surreal()
+    convert_k2hpd()

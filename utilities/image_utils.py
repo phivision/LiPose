@@ -256,16 +256,34 @@ def generate_gtmap(joints, sigma, outres):
     return gtmap
 
 
-def preprocess_image(image, model_input_size, mean=(0.4404, 0.4440, 0.4327)):
+def generate_blended_heatmap(heatmap):
+    """Generate a blended heatmap from a stack of heatmaps
+
+    Args:
+        heatmap: heatmap with shape [height, width, joints]
+
+    Returns:
+        blended heatmap
     """
-    Prepare model input image data with
+    if len(heatmap.shape) < 3:
+        raise(TypeError("Heatmap input has wrong format/shape!"))
+    heat_maps = [heatmap[:, :, i] for i in range(heatmap.shape[-1])]
+    blended_map = np.zeros(heat_maps[0].shape)
+    for heat_map in heat_maps:
+        blended_map += heat_map
+    return blended_map
+
+
+def preprocess_image(image, model_input_size, mean=(0.4404, 0.4440, 0.4327)):
+    """ Prepare model input image data with
     resize, normalize and dim expansion
-    # Arguments
-        image: origin input image
-            PIL Image object containing image data
-        model_image_size: model input image size
-            tuple of format (height, width).
-    # Returns
+
+    Args:
+        image: origin input image PIL Image object containing image data
+        model_input_size: model input image size tuple of format (height, width).
+        mean: mean value for normalize input image
+
+    Returns:
         image_data: numpy array of image data for model input.
     """
     resized_image = image.resize(model_input_size, Image.BICUBIC)

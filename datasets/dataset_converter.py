@@ -365,27 +365,32 @@ def convert_k2hpd_data(index_path: Path,
         with index_path.open(mode='r') as index_file:
             depth_image_list = index_file.readlines()
         depth_image_list = depth_image_list[:max_count] if len(depth_image_list) > max_count else depth_image_list
-        for depth_info in depth_image_list:
+        for depth_info in tqdm(depth_image_list):
             info_list = depth_info.split(' ')
             image_name = info_list[0]
-            if len(info_list) < K2HPD_JOINT_COUNT * 2 + 1:
+            joint_list = info_list[1].split(',')
+            if len(joint_list) < K2HPD_JOINT_COUNT * 2:
                 print("Incomplete joint info! Skip this line!")
                 break
             else:
                 raw_joints_2d = np.zeros((2, K2HPD_JOINT_COUNT))
                 for i in range(K2HPD_JOINT_COUNT):
-                    raw_joints_2d[0, i] = int(info_list[i*2+1])
-                    raw_joints_2d[1, i] = int(info_list[i*2+2])
-                raw_depth_map = imageio.imread(Path(image_path, image_name))
+                    raw_joints_2d[0, i] = int(joint_list[i*2])
+                    raw_joints_2d[1, i] = int(joint_list[i*2+1])
+                raw_depth_map = (imageio.imread(Path(image_path, image_name))[:, :, 0] / 255.0).astype(np.float32)
                 depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=False)
                 joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
                 pad_vec, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
                 resized_joints_2d = relative_joints(c_box, pad_vec, joints_2d, to_size=heatmap_size)
                 heat_map = _generate_2d_heat_map(heatmap_size, heatmap_size, resized_joints_2d, heatmap_size)
+                # camera location is unknown in k2hpd
+                cam_loc = np.array((0.0, 0.0, 0.0), dtype=np.float32)
                 feature = {'depth': _bytes_feature(serialize_array(depth_map)),
                            'heat_map': _bytes_feature(serialize_array(heat_map)),
                            'joints_2d': _bytes_feature(serialize_array(joints_2d)),
+                           'cam_loc': _bytes_feature(serialize_array(cam_loc)),
                            'name': _bytes_feature(image_name.encode('utf-8')),
+                           'frame_index': _int64_feature(0),  # frame index is unknown
                            'crop_box': _int64_feature_list(c_box)}
                 example_message = tf.train.Example(features=tf.train.Features(feature=feature))
                 writer.write(example_message.SerializeToString())

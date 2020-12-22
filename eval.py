@@ -30,7 +30,7 @@ from utilities.image_utils import invert_transform_kp
 from utilities.misc_utils import touch_dir, get_classes, get_skeleton, render_skeleton, optimize_tf_gpu, \
     count_tfrecord_examples
 from utilities.model_utils import load_eval_model, get_normalize
-from datasets.dataset_loader import load_full_surreal_data, parse_tfr_tensor
+from datasets.dataset_loader import load_dataset, parse_tfr_tensor
 from datasets.dataset_converter import relative_joints
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
@@ -243,16 +243,8 @@ def eval_pck(model,
     p_bar = tqdm(total=total_example, desc='Eval model')
     # fetch validation data from dataset, which will crop out single person area,
     for element in eval_dataset.take(total_example):
-        example = parse_tfr_tensor(element)
-        if image_type == 'rgb':
-            image_data = example[image_type]
-        elif image_type == 'depth':
-            # insert image channel index to the shape of depth map
-            image_data = tf.expand_dims(example[image_type], -1)
-        else:
-            raise TypeError(f"Do not support image type {image_type}")
-        # gt_heatmap = example['heat_map']
-
+        example = parse_tfr_tensor(element, image_type=image_type, support_3d=False)
+        image_data = example[image_type]
         # support of tflite model
         if model_format == 'TFLITE':
             heatmap = hourglass_predict_tflite(model, image_data)
@@ -390,7 +382,7 @@ def main():
 
     model, model_format = load_eval_model(args.model_path)
 
-    eval_dataset = load_full_surreal_data(args.dataset_path)
+    eval_dataset = load_dataset(args.dataset_path, image_type=args.image_type)
 
     total_accuracy, accuracy_dict = eval_pck(model, model_format, eval_dataset, class_names, args.score_threshold,
                                              normalize, args.conf_threshold, args.image_type, args.save_result,
