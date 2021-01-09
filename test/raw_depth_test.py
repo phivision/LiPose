@@ -51,9 +51,10 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of padded depth map {std_input.shape}")
             # normalize input
-            input_max = np.max(std_input)
-            input_min = np.min(std_input)
-            norm_input = (std_input - input_min) / (input_max - input_min)
+            # input_max = np.max(std_input)
+            # input_min = np.min(std_input)
+            # norm_input = (std_input - input_min) / (input_max - input_min)
+            norm_input = std_input
         elif input_file.endswith('.mat'):
             depth_data = sio.loadmat(depth_file.name)['depth_1']
             std_input, _ = generate_new_depth(DEPTH_HEIGHT, DEPTH_WIDTH, depth_data)

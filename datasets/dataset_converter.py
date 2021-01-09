@@ -217,16 +217,18 @@ def generate_new_depth(new_height,
         raise(ValueError("This new depth shape has not been tested!"))
     # this conversion will put the human depth data into a 0-5.0 linear space and human will put in the middle
     human_center_depth = np.mean(new_map[new_map < BG_THRESHOLD])
+    depth_shift = TARGET_MAX_DEPTH / 2.0 - human_center_depth
     if noise:
         # if adding noise, the center of human will relocate to the center of targeting space
         noise_background = np.random.rand(*new_map.shape)
         noise_background *= TARGET_MAX_DEPTH
-        depth_shift = TARGET_MAX_DEPTH / 2.0 - human_center_depth
         noise_background[new_map < BG_THRESHOLD] = new_map[new_map < BG_THRESHOLD] + depth_shift
         new_map = noise_background.astype(np.float32)
     else:
-        background_depth = human_center_depth * 2.0
-        new_map[new_map > BG_THRESHOLD] = background_depth
+        # shift human to iOS lidar range
+        new_map[new_map <= BG_THRESHOLD] += depth_shift
+        # make new background to targeting depth
+        new_map[new_map > BG_THRESHOLD] = TARGET_MAX_DEPTH
     if grayscale:
         new_map /= np.max(new_map)
         new_map *= 255.0
