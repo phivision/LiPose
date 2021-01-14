@@ -26,54 +26,57 @@ from utilities.misc_utils import parse_image_channel
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 
-def parse_tfr_tensor(element):
+def parse_tfr_tensor(element, image_type='rgb', support_3d=False):
     """
     Parse all TFRecord data as a dict
     Args:
         element: an element of dataset
+        image_type: type of tensor image data
+        support_3d: support training / evaluation 3d model
 
     Returns:
         a dict contains all data
     """
-    new_element = {
-        'rgb': tf.io.parse_tensor(element['rgb'], out_type=tf.uint8),
-        'depth': tf.io.parse_tensor(element['depth'], out_type=tf.float32),
-        'joints_2d': tf.io.parse_tensor(element['joints_2d'], out_type=tf.float32),
-        'joints_3d': tf.io.parse_tensor(element['joints_3d'], out_type=tf.float32),
-        'heat_map': tf.io.parse_tensor(element['heat_map'], out_type=tf.float32),
-        'cam_loc': tf.io.parse_tensor(element['cam_loc'], out_type=tf.float32),
-        'name': element['name'],
-        'frame_index': element['frame_index'],
-        'crop_box': element['crop_box']
-    }
+    if image_type == 'rgb':
+        new_element = {'rgb': tf.io.parse_tensor(element['rgb'], out_type=tf.uint8)}
+    elif image_type == 'depth':
+        # insert image channel index to the shape of depth map
+        new_element = {'depth': tf.expand_dims(tf.io.parse_tensor(element['depth'], out_type=tf.float32), -1)}
+    else:
+        raise TypeError(f"Do not support image type {image_type}")
+    if support_3d:
+        new_element['joints_3d'] = tf.io.parse_tensor(element['joints_3d'], out_type=tf.float32)
+    new_element['joints_2d'] = tf.io.parse_tensor(element['joints_2d'], out_type=tf.float32)
+    new_element['heat_map'] = tf.io.parse_tensor(element['heat_map'], out_type=tf.float32)
+    new_element['cam_loc'] = tf.io.parse_tensor(element['cam_loc'], out_type=tf.float32)
+    new_element['name'] = element['name']
+    new_element['frame_index'] = element['frame_index']
+    new_element['crop_box'] = element['crop_box']
     return new_element
 
 
-def _parse_tfr_element(element):
+def _parse_tfr_element(element, image_type='rgb', support_3d=False):
     """
     Deserialize TFRecord as a dict, numpy array is parsed as byte string. This is for debugging and evaluation.
     Args:
         element: an element in raw TFRecord dataset
+        image_type: type of tensor image data
+        support_3d: support training / evaluation 3d model
 
     Returns:
         a dict needs further parse for full data
     """
-    parse_dict = {
-        # Note that it is tf.string, not tf.float32
-        'rgb': tf.io.FixedLenFeature([], tf.string),
-        'depth': tf.io.FixedLenFeature([], tf.string),
-        'joints_2d': tf.io.FixedLenFeature([], tf.string),
-        'joints_3d': tf.io.FixedLenFeature([], tf.string),
-        'heat_map': tf.io.FixedLenFeature([], tf.string),
-        'cam_loc': tf.io.FixedLenFeature([], tf.string),
-        'name': tf.io.FixedLenFeature([], tf.string),
-        'frame_index': tf.io.FixedLenFeature([], tf.int64),
-        'crop_box': tf.io.FixedLenFeature([4], tf.int64)}
+    parse_dict = {image_type: tf.io.FixedLenFeature([], tf.string), 'joints_2d': tf.io.FixedLenFeature([], tf.string),
+                  'heat_map': tf.io.FixedLenFeature([], tf.string), 'cam_loc': tf.io.FixedLenFeature([], tf.string),
+                  'name': tf.io.FixedLenFeature([], tf.string), 'frame_index': tf.io.FixedLenFeature([], tf.int64),
+                  'crop_box': tf.io.FixedLenFeature([4], tf.int64)}
+    if support_3d:
+        parse_dict['joints_3d'] = tf.io.FixedLenFeature([], tf.string)
     example_message = tf.io.parse_single_example(element, parse_dict)
     return example_message
 
 
-def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
+def _parse_tfr_training(element, image_type='rgb', num_features=256):
     """
     Parse TFRecord for model training, which only generate partial data
     Args:
@@ -84,11 +87,11 @@ def _parse_tfr_rgb_training(element, image_type='rgb', num_features=256):
     Returns:
         rgb tensor, heat map tensor
     """
-    example_message = _parse_tfr_element(element)
+    example_message = _parse_tfr_element(element, image_type=image_type)
     if image_type == 'rgb':
-        image = tf.io.parse_tensor(example_message['rgb'], out_type=tf.uint8)
+        image = tf.io.parse_tensor(example_message[image_type], out_type=tf.uint8)
     elif image_type == 'depth':
-        image = tf.io.parse_tensor(example_message['depth'], out_type=tf.float32)
+        image = tf.io.parse_tensor(example_message[image_type], out_type=tf.float32)
     else:
         raise TypeError(f"Do not support image type {image_type}")
     num_input_ch = parse_image_channel(image_type)
@@ -108,29 +111,32 @@ def _load_tfr_data(data_path: Path):
     return tfr_data
 
 
-def load_full_surreal_data(data_path: Path):
+def load_dataset(data_path: Path, image_type='rgb', support_3d=False):
     """
-    Load SURREAL TFRecord data and parsed as a dict
+    Load TFRecord dataset and parsed as a dict
     Args:
         data_path: file path to TFRecord
+        image_type: type of tensor image data
+        support_3d: support training / evaluation 3d model
 
     Returns:
         a dataset mapped with TFR parser
     """
     tfr_data = _load_tfr_data(data_path)
-    dataset = tfr_data.map(_parse_tfr_element, num_parallel_calls=AUTOTUNE)
+    parse_func = partial(_parse_tfr_element, image_type=image_type, support_3d=support_3d)
+    dataset = tfr_data.map(parse_func, num_parallel_calls=AUTOTUNE)
     dataset = dataset.shuffle(2048)
     dataset = dataset.prefetch(buffer_size=AUTOTUNE)
     return dataset
 
 
-def load_surreal_data_training(data_path: Path,
-                               batch_size: int,
-                               shuffle: bool = True,
-                               num_features: int = 256,
-                               image_type: str = 'rgb'):
+def load_data_training(data_path: Path,
+                       batch_size: int,
+                       shuffle: bool = True,
+                       num_features: int = 256,
+                       image_type: str = 'rgb'):
     tfr_data = _load_tfr_data(data_path)
-    parse_func = partial(_parse_tfr_rgb_training, image_type=image_type, num_features=num_features)
+    parse_func = partial(_parse_tfr_training, image_type=image_type, num_features=num_features)
     dataset = tfr_data.map(parse_func, num_parallel_calls=AUTOTUNE)
     if shuffle:
         dataset = dataset.shuffle(2048)

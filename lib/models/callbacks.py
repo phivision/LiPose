@@ -18,7 +18,7 @@ Fanghao Yang, 10/29/2020
 """
 import os
 from tensorflow.keras.callbacks import Callback
-from datasets.dataset_loader import load_full_surreal_data
+from datasets.dataset_loader import load_dataset
 from utilities.model_utils import get_normalize, save_model
 from eval import eval_pck
 
@@ -40,7 +40,7 @@ class EvalCallBack(Callback):
         xfile.close()
 
     def on_epoch_end(self, epoch, logs=None):
-        val_dataset = load_full_surreal_data(self.dataset_path)
+        val_dataset = load_dataset(self.dataset_path, image_type=self.image_type)
 
         val_acc, _ = eval_pck(self.model, 'H5', val_dataset, self.class_names,
                               image_type=self.image_type,

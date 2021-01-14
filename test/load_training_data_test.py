@@ -19,7 +19,7 @@ By Fanghao Yang, 10/15/2020
 """
 
 import click
-from datasets.dataset_loader import load_surreal_data_training, parse_tfr_tensor
+from datasets.dataset_loader import load_data_training, parse_tfr_tensor
 from pathlib import Path
 import pylab
 import numpy as np
@@ -28,7 +28,7 @@ import numpy as np
 @click.command()
 @click.option('--input_file', help='input TFRecords file')
 def load_training_data_test(input_file: str):
-    dataset = load_surreal_data_training(Path(input_file), 1, image_type='rgb')
+    dataset = load_data_training(Path(input_file), 1, image_type='depth')
     # count the total number of examples
     count = int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
     print(f"Total {count} examples in dataset: {input_file}")

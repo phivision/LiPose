@@ -26,7 +26,7 @@ import tensorflow.keras.backend as keras_backend
 from tensorflow.keras.callbacks import TensorBoard, TerminateOnNaN
 from tensorflow.keras.losses import mean_squared_error
 
-from datasets.dataset_loader import load_surreal_data_training
+from datasets.dataset_loader import load_data_training
 from lib.models.callbacks import EvalCallBack
 from lib.models.stacked_hourglass import StackedHourglass
 from utilities.misc_utils import get_classes, get_model_type, optimize_tf_gpu, count_tfrecord_examples
@@ -56,11 +56,11 @@ def main(arguments):
     image_type = arguments.image_type
 
     # get train dataset
-    train_dataset = load_surreal_data_training(arguments.dataset_path,
-                                               arguments.batch_size,
-                                               num_features=arguments.num_features,
-                                               shuffle=True,
-                                               image_type=image_type)
+    train_dataset = load_data_training(arguments.dataset_path,
+                                       arguments.batch_size,
+                                       num_features=arguments.num_features,
+                                       shuffle=True,
+                                       image_type=image_type)
     # check if the dataset matches the arguments
     input_size = None
     for image, _ in train_dataset.take(1):
