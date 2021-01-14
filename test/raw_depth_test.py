@@ -93,6 +93,11 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
         # create a list of heatmaps
         heatmap_list = [heatmaps[:, :, i] for i in range(heatmaps.shape[-1])]
         draw_stacked_heatmaps(heatmap_list, norm_input, heatmap_w_ratio)
+        # plot each heatmap
+        for heatmap, joint_name in zip(heatmap_list, joint_names):
+            pylab.figure()
+            pylab.title(joint_name)
+            pylab.imshow(heatmap)
 
     pylab.show()
 
