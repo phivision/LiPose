@@ -32,14 +32,16 @@ import pylab
 def load_surreal_test(input_file: str, image_type: str):
     dataset = load_dataset(Path(input_file), image_type=image_type)
     for element in dataset.take(5):
-        example = parse_tfr_tensor(element)
+        example = parse_tfr_tensor(element, image_type=image_type)
         print(f"Loading data for image: {example['name'].numpy().decode('ascii')}")
-        pylab.figure()
-        pylab.imshow(example['rgb'])
-        print(f"rgb image shape {example['rgb'].shape}")
-        pylab.figure()
-        depth_map = example['depth'].numpy()
-        pylab.imshow(depth_map / TARGET_MAX_DEPTH)
+        if image_type == 'rgb':
+            pylab.figure()
+            pylab.imshow(example['rgb'])
+            print(f"rgb image shape {example['rgb'].shape}")
+        elif image_type == 'depth':
+            pylab.figure()
+            depth_map = example['depth'].numpy()
+            pylab.imshow(depth_map / TARGET_MAX_DEPTH)
         # list heat maps
         blended_map = generate_blended_heatmap(example['heat_map'])
         # for heat_map in heat_maps:
