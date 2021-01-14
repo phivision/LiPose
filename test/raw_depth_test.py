@@ -23,7 +23,6 @@ import pylab
 import numpy as np
 import scipy.io as sio
 import imageio
-from scipy.ndimage import zoom
 from utilities.model_utils import load_eval_model
 from eval import hourglass_predict_coreml, hourglass_predict_keras
 from lib.postprocessing import post_process_heatmap
@@ -61,7 +60,7 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of depth map {std_input.shape}")
             # normalize input
-            norm_input = std_input / np.max(std_input)
+            norm_input = std_input
         elif input_file.endswith('.png'):
             depth_data = np.asarray(imageio.imread(depth_file.name))
             w_shift = (DEPTH_WIDTH - depth_data.shape[1]) // 2
