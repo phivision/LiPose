@@ -24,6 +24,8 @@ from datasets.dataset_converter import TARGET_MAX_DEPTH
 from utilities.image_utils import generate_blended_heatmap
 from pathlib import Path
 import pylab
+import matplotlib.pyplot as plt
+plt.rcParams.update({'figure.max_open_warning': 0})
 
 
 @click.command()

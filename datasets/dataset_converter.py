@@ -149,7 +149,7 @@ def _generate_2d_crop_box(height, width, depth, box_pad_rate=0.05):
     return padding, crop_box
 
 
-def relative_joints(box, padding, joints_2d, to_size=64):
+def relative_joints(box, padding, joints_2d, to_size=48):
     """ Convert Absolute joint coordinates to crop box relative joint coordinates
         Used to compute Heat Maps)
         Args:
@@ -164,6 +164,11 @@ def relative_joints(box, padding, joints_2d, to_size=64):
     new_j = new_j - [box[0] - max_l // 2, box[1] - max_l // 2]
     new_j = new_j * to_size / (max_l + 0.0000001)
     return new_j.astype(np.int32).T
+
+
+def absolute_joints(image_size, joints_2d, to_size=48):
+    ratio = image_size / to_size
+    return np.around(joints_2d / ratio)
 
 
 def _generate_2d_heat_map(height, width, joints_2d, max_length):
@@ -324,7 +329,7 @@ def convert_surreal_data(input_path: Path,
                 joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
                 # generate heat map array
                 pad_vec, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
-                resized_joints_2d = relative_joints(c_box, pad_vec, joints_2d, to_size=heatmap_size)
+                resized_joints_2d = absolute_joints(image_size, joints_2d, to_size=heatmap_size)
                 heat_map = _generate_2d_heat_map(heatmap_size, heatmap_size, resized_joints_2d, heatmap_size)
                 feature = {'rgb': _bytes_feature(serialize_array(rgb_image)),
                            'depth': _bytes_feature(serialize_array(depth_map)),

@@ -29,6 +29,8 @@ from lib.postprocessing import post_process_heatmap
 from lib.visualization import draw_joints, draw_stacked_heatmaps
 from utilities.misc_utils import get_classes
 from datasets.dataset_converter import generate_new_depth
+import matplotlib.pyplot as plt
+plt.rcParams.update({'figure.max_open_warning': 0})
 DEPTH_HEIGHT = 192
 DEPTH_WIDTH = 192
 PRED_THRESHOLD = 0.3
