@@ -23,16 +23,19 @@ from datasets.dataset_loader import load_data_training, parse_tfr_tensor
 from pathlib import Path
 import pylab
 import numpy as np
+import matplotlib.pyplot as plt
+plt.rcParams.update({'figure.max_open_warning': 0})
 
 
 @click.command()
 @click.option('--input_file', help='input TFRecords file')
-def load_training_data_test(input_file: str):
-    dataset = load_data_training(Path(input_file), 1, image_type='depth')
+@click.option('--image_size', type=int, help='size of pixels of image')
+def load_training_data_test(input_file: str, image_size: int):
+    dataset = load_data_training(Path(input_file), 1, num_features=image_size, image_type='depth')
     # count the total number of examples
     count = int(dataset.reduce(np.int64(0), lambda x, _: x + 1))
     print(f"Total {count} examples in dataset: {input_file}")
-    for rgb, heat_map in dataset.take(3):
+    for rgb, heat_map in dataset.take(10):
         pylab.figure()
         pylab.imshow(rgb[0]/255.0)
         print(f"rgb image shape {rgb.shape}")
