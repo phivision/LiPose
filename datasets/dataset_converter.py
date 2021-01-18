@@ -20,7 +20,6 @@ By Fanghao Yang, 10/15/2020
 """
 
 import scipy.io as sio
-import imageio
 import tensorflow as tf
 import imageio
 import numpy as np
@@ -195,7 +194,8 @@ def generate_new_depth(new_height,
                        new_width,
                        raw_depth,
                        grayscale=False,
-                       noise=False):
+                       noise=False,
+                       norm=False):
     """Generate a resized new depth image from raw data
     This code ONLY tested for converting 240x320 data to 256x256 or 192x192 data!!!
     Args:
@@ -204,6 +204,7 @@ def generate_new_depth(new_height,
         raw_depth: raw depth map
         grayscale: normalize and convert the depth image as grayscale map
         noise: include random noise in the background
+        norm: normalize input data to 0 - 1.0 range
 
     Returns:
         new depth map, new and raw bbox of human in original depth map
@@ -226,14 +227,22 @@ def generate_new_depth(new_height,
     if noise:
         # if adding noise, the center of human will relocate to the center of targeting space
         noise_background = np.random.rand(*new_map.shape)
-        noise_background *= TARGET_MAX_DEPTH
-        noise_background[new_map < BG_THRESHOLD] = new_map[new_map < BG_THRESHOLD] + depth_shift
+        if norm:
+            noise_background[new_map < BG_THRESHOLD] = (new_map[new_map < BG_THRESHOLD] + depth_shift) \
+                                                       / TARGET_MAX_DEPTH
+        else:
+            noise_background *= TARGET_MAX_DEPTH
+            noise_background[new_map < BG_THRESHOLD] = new_map[new_map < BG_THRESHOLD] + depth_shift
         new_map = noise_background.astype(np.float32)
     else:
         # shift human to iOS lidar range
         new_map[new_map <= BG_THRESHOLD] += depth_shift
         # make new background to targeting depth
-        new_map[new_map > BG_THRESHOLD] = TARGET_MAX_DEPTH
+        if norm:
+            new_map /= TARGET_MAX_DEPTH
+            new_map[new_map > BG_THRESHOLD] = 1.0
+        else:
+            new_map[new_map > BG_THRESHOLD] = TARGET_MAX_DEPTH
     if grayscale:
         new_map /= np.max(new_map)
         new_map *= 255.0
@@ -317,7 +326,10 @@ def convert_surreal_data(input_path: Path,
             for i in range(0, num_frames, FRAME_STEP):
                 raw_rgb_image = video.get_data(i)
                 raw_depth_map = depth_data['depth_' + str(i + 1)]
-                depth_map, shift = generate_new_depth(image_size, image_size, raw_depth_map, noise=False)
+                depth_map, shift = generate_new_depth(image_size, image_size,
+                                                      raw_depth_map,
+                                                      noise=False,
+                                                      norm=True)
                 rgb_image = _generate_new_rgb(image_size, image_size, shift, raw_rgb_image)
                 if num_frames == 1:
                     raw_joints_2d = info_data['joints2D']
@@ -328,7 +340,7 @@ def convert_surreal_data(input_path: Path,
                 cam_loc = info_data['camLoc']
                 joints_2d = _generate_new_joints_2d(raw_joints_2d, shift)
                 # generate heat map array
-                pad_vec, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
+                _, c_box = _generate_2d_crop_box(image_size, image_size, depth_map)
                 resized_joints_2d = absolute_joints(image_size, joints_2d, to_size=heatmap_size)
                 heat_map = _generate_2d_heat_map(heatmap_size, heatmap_size, resized_joints_2d, heatmap_size)
                 feature = {'rgb': _bytes_feature(serialize_array(rgb_image)),

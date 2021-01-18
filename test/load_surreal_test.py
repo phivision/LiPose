@@ -43,7 +43,7 @@ def load_surreal_test(input_file: str, image_type: str):
         elif image_type == 'depth':
             pylab.figure()
             depth_map = example['depth'].numpy()
-            pylab.imshow(depth_map / TARGET_MAX_DEPTH)
+            pylab.imshow(depth_map)
         # list heat maps
         blended_map = generate_blended_heatmap(example['heat_map'])
         pylab.figure()
