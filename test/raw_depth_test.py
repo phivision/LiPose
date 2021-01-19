@@ -24,6 +24,7 @@ import numpy as np
 import scipy.io as sio
 import imageio
 from utilities.model_utils import load_eval_model
+from datasets.dataset_converter import TARGET_MAX_DEPTH
 from eval import hourglass_predict_coreml, hourglass_predict_keras
 from lib.postprocessing import post_process_heatmap
 from lib.visualization import draw_joints, draw_stacked_heatmaps
@@ -33,7 +34,7 @@ import matplotlib.pyplot as plt
 plt.rcParams.update({'figure.max_open_warning': 0})
 DEPTH_HEIGHT = 192
 DEPTH_WIDTH = 192
-PRED_THRESHOLD = 0.3
+PRED_THRESHOLD = 0.2
 
 
 @click.command()
@@ -55,14 +56,14 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             # input_max = np.max(std_input)
             # input_min = np.min(std_input)
             # norm_input = (std_input - input_min) / (input_max - input_min)
-            norm_input = std_input
+            norm_input = std_input / TARGET_MAX_DEPTH
         elif input_file.endswith('.mat'):
             depth_data = sio.loadmat(depth_file.name)['depth_1']
             std_input, _ = generate_new_depth(DEPTH_HEIGHT, DEPTH_WIDTH, depth_data)
             std_input = np.expand_dims(std_input, axis=2)
             print(f"Shape of depth map {std_input.shape}")
             # normalize input
-            norm_input = std_input
+            norm_input = std_input / TARGET_MAX_DEPTH
         elif input_file.endswith('.png'):
             depth_data = np.asarray(imageio.imread(depth_file.name))
             w_shift = (DEPTH_WIDTH - depth_data.shape[1]) // 2
@@ -91,7 +92,7 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
         project_dir = os.path.dirname(work_dir)
         joint_names = get_classes(os.path.join(project_dir, joint_list))
         heatmap_w_ratio = DEPTH_WIDTH/heatmaps.shape[1]
-        draw_joints(pred_joints, joint_names, norm_input, heatmap_w_ratio)
+        draw_joints(pred_joints, joint_names, norm_input, heatmap_w_ratio, threshold=PRED_THRESHOLD)
         # create a list of heatmaps
         heatmap_list = [heatmaps[:, :, i] for i in range(heatmaps.shape[-1])]
         draw_stacked_heatmaps(heatmap_list, norm_input, heatmap_w_ratio)

@@ -20,7 +20,6 @@ By Fanghao Yang, 10/15/2020
 
 import click
 from datasets.dataset_loader import load_dataset, parse_tfr_tensor
-from datasets.dataset_converter import TARGET_MAX_DEPTH
 from utilities.image_utils import generate_blended_heatmap
 from pathlib import Path
 import pylab

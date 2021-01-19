@@ -20,7 +20,7 @@ Fanghao Yang 10/29/2020
 
 import argparse
 import os
-from contextlib import nullcontext
+from pathlib import Path
 
 import tensorflow.keras.backend as keras_backend
 from tensorflow.keras.callbacks import TensorBoard, TerminateOnNaN
@@ -56,7 +56,7 @@ def main(arguments):
     image_type = arguments.image_type
 
     # get train dataset
-    train_dataset = load_data_training(arguments.dataset_path,
+    train_dataset = load_data_training(Path(arguments.dataset_path),
                                        arguments.batch_size,
                                        num_features=arguments.num_features,
                                        shuffle=True,

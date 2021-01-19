@@ -21,13 +21,14 @@ from tensorflow.keras.callbacks import Callback
 from datasets.dataset_loader import load_dataset
 from utilities.model_utils import get_normalize, save_model
 from eval import eval_pck
+from pathlib import Path
 
 
 class EvalCallBack(Callback):
     def __init__(self, log_dir, dataset_path, class_names, input_size, model_type, image_type):
         super().__init__()
         self.log_dir = log_dir
-        self.dataset_path = dataset_path
+        self.dataset_path = Path(dataset_path)
         self.class_names = class_names
         self.normalize = get_normalize(input_size)
         self.input_size = input_size

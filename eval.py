@@ -129,12 +129,12 @@ def hourglass_predict_keras(model, image_data):
     return heatmap
 
 
-def hourglass_predict_coreml(mlmodel, image_data):
+def hourglass_predict_coreml(mlmodel, image_data, input_name: str = "inputs"):
     if tf.is_tensor(image_data):
         # convert to numpy data if the input were tensor
         image_data = image_data.numpy()
     input_data = np.expand_dims(image_data, axis=0)
-    prediction_dict = mlmodel.predict({"inputs": input_data})
+    prediction_dict = mlmodel.predict({input_name: input_data})
     heatmap = prediction_dict["Identity_1"][0]
     return heatmap
 

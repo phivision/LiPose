@@ -106,7 +106,11 @@ def _load_tfr_data(data_path: Path):
     # ignore order of data to speed up loading
     ignore_order = tf.data.Options()
     ignore_order.experimental_deterministic = False
-    tfr_data = tf.data.TFRecordDataset(str(data_path))
+    if data_path.is_dir():
+        record_list = [str(tfrecord) for tfrecord in data_path.glob('*.tfrecord')]
+        tfr_data = tf.data.TFRecordDataset(record_list)
+    else:
+        tfr_data = tf.data.TFRecordDataset(str(data_path))
     tfr_data = tfr_data.with_options(ignore_order)
     return tfr_data
 

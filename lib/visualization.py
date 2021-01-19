@@ -24,7 +24,11 @@ import numpy as np
 from scipy.ndimage import zoom
 
 
-def draw_joints(joints: list, joint_names: list, img, ratio: float):
+def draw_joints(joints: list,
+                joint_names: list,
+                img,
+                ratio: float,
+                threshold=0.5):
     """Draw joints on image
 
     Args:
@@ -32,6 +36,7 @@ def draw_joints(joints: list, joint_names: list, img, ratio: float):
         joint_names: a list of joint name
         img: raw image
         ratio: the ratio between the heatmap location with raw image
+        threshold: the threshold to draw the joint or not
 
     Returns:
 
@@ -39,7 +44,7 @@ def draw_joints(joints: list, joint_names: list, img, ratio: float):
     pylab.figure()
     for idx, joint in enumerate(joints):
         x, y, confidence = joint
-        if confidence > 0.5:
+        if confidence > threshold:
             joint_name = joint_names[idx]
             real_x = x * ratio
             real_y = y * ratio
