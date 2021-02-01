@@ -1,0 +1,12 @@
+left_hand, left_wrist
+left_hand, left_elbow
+left_wrist, left_elbow
+left_foot, left_ankle
+left_ankle, left_knee
+left_foot, left_knee
+right_hand, right_wrist
+right_hand, right_elbow
+right_wrist, right_elbow
+right_foot, right_ankle
+right_ankle, right_knee
+right_foot, right_knee

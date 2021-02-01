@@ -96,6 +96,27 @@ def get_classes(classes_path):
     return class_names
 
 
+def get_neighbours(class_names: list, neighbour_path):
+    """get joint neighbours for location based matching
+
+    Args:
+        class_names: joint class name list
+        neighbour_path: path to load joint neighbours
+
+    Returns:
+        matched neighbour index list
+    """
+    with open(neighbour_path) as f:
+        neighbour_names = f.readlines()
+    neighbour_list = list()
+    for name in neighbour_names:
+        neighbour_name = name.split(', ')
+        first = neighbour_name[0].strip()
+        second = neighbour_name[1].strip()
+        neighbour_list.append((class_names.index(first), class_names.index(second)))
+    return neighbour_list
+
+
 def get_model_type(num_stacks, mobile, tiny, input_size):
     mobile_str = 'mobile_' if mobile else ''
     tiny_str = 'tiny_' if tiny else ''

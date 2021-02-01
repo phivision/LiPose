@@ -26,26 +26,27 @@ import imageio
 from utilities.model_utils import load_eval_model
 from datasets.dataset_converter import TARGET_MAX_DEPTH
 from eval import hourglass_predict_coreml, hourglass_predict_keras
-from lib.postprocessing import post_process_heatmap
+from lib.postprocessing import post_process_heatmap, match_keypoint
 from lib.visualization import draw_joints, draw_stacked_heatmaps
-from utilities.misc_utils import get_classes
+from utilities.misc_utils import get_classes, get_neighbours
 from datasets.dataset_converter import generate_new_depth
 import matplotlib.pyplot as plt
 plt.rcParams.update({'figure.max_open_warning': 0})
 DEPTH_HEIGHT = 192
 DEPTH_WIDTH = 192
-PRED_THRESHOLD = 0.2
+PRED_THRESHOLD = 0.05
 
 
 @click.command()
 @click.option('--input_file', help='input depth data .npy or .mat file')
 @click.option('--model_path', help="model used to test raw data")
 @click.option('--joint_list', default='datasets/surreal/joint_list.txt', help="a list of joint names in txt file")
-def raw_depth_test(input_file: str, model_path: str, joint_list: str):
+@click.option('--joint_neighbours', default='datasets/surreal/joint_neighbours.txt', help="a list of neighbour joints")
+def raw_depth_test(input_file: str, model_path: str, joint_list: str, joint_neighbours: str):
     with open(input_file, 'rb') as depth_file:
         if input_file.endswith('.npy'):
             depth_data = np.load(depth_file.name)
-            resized_depth = depth_data[::2, ::2]
+            resized_depth = (depth_data[::2, ::2] + depth_data[1::2, 1::2]) / 2
             print(f"Shape of resized depth map {resized_depth.shape}")
             # padding the input to get standard size
             w_shift = (DEPTH_WIDTH - resized_depth.shape[1]) // 2
@@ -56,6 +57,7 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             # input_max = np.max(std_input)
             # input_min = np.min(std_input)
             # norm_input = (std_input - input_min) / (input_max - input_min)
+            std_input[std_input > TARGET_MAX_DEPTH] = TARGET_MAX_DEPTH
             norm_input = std_input / TARGET_MAX_DEPTH
         elif input_file.endswith('.mat'):
             depth_data = sio.loadmat(depth_file.name)['depth_1']
@@ -81,16 +83,20 @@ def raw_depth_test(input_file: str, model_path: str, joint_list: str):
             # the tf keras h5 format or keras subclassing model in protobuf format
             heatmaps = hourglass_predict_keras(model, norm_input)
         elif model_format == 'COREML':
-            heatmaps = hourglass_predict_coreml(model, norm_input)
+            heatmaps = hourglass_predict_coreml(model, norm_input, input_name='input_1')
         else:
             raise TypeError("Do not support this model format!")
         # get predict joints from heatmap
-        pred_joints = post_process_heatmap(heatmaps, PRED_THRESHOLD)
-        print(pred_joints)
+        pred_multi_joints = post_process_heatmap(heatmaps, PRED_THRESHOLD)
         # get a list of joint names
         work_dir = os.getcwd()
         project_dir = os.path.dirname(work_dir)
         joint_names = get_classes(os.path.join(project_dir, joint_list))
+        joint_neighbours = get_neighbours(joint_names, os.path.join(project_dir, joint_neighbours))
+        # find matched neighbour joints from heatmap
+        pred_joints = match_keypoint(pred_multi_joints, joint_neighbours)
+        for joint, name in zip(pred_joints, joint_names):
+            print(f"{name} at {joint}")
         heatmap_w_ratio = DEPTH_WIDTH/heatmaps.shape[1]
         draw_joints(pred_joints, joint_names, norm_input, heatmap_w_ratio, threshold=PRED_THRESHOLD)
         # create a list of heatmaps
